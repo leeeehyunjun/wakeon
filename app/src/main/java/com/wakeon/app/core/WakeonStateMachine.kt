@@ -26,12 +26,16 @@ import com.wakeon.app.nav.RestArea
 import com.wakeon.app.nav.RestAreaType
 import com.wakeon.app.vehicle.Gear
 import com.wakeon.app.vehicle.VehicleSignals
+import com.wakeon.app.voice.Answer
+import com.wakeon.app.voice.ConversationPlanner
 import com.wakeon.app.voice.Grammar
 import com.wakeon.app.voice.KoreanText
 import com.wakeon.app.voice.Line
 import com.wakeon.app.voice.Question
 import com.wakeon.app.voice.QuestionBank
 import com.wakeon.app.voice.QuestionType
+import com.wakeon.app.voice.Slot
+import com.wakeon.app.voice.TalkStep
 import com.wakeon.app.voice.UserIntent
 import com.wakeon.app.voice.VoiceLines
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -112,6 +116,7 @@ class WakeonStateMachine(
     private val suspicion = Suspicion(config)
     private val triggers = DriveTriggers(config)
     private val memory = mutableMapOf<String, String>()
+    private val planner = ConversationPlanner(memory)
     private var summary = SessionSummary()
 
     // 출발 전 체크
@@ -120,9 +125,10 @@ class WakeonStateMachine(
     private var precheckCorrect = 0
     private var precheckTotal = 0
     private var precheckSummary: PrecheckSummary? = null
+    /** 출발 전 체크에서 다음 문항 앞에 붙일 짧은 호응("강아지 좋죠.") */
+    private var precheckAck: String? = null
 
     // 대화
-    private var driveCursor = 0
     private var questionNo = 0
     private var questionTotal = 0
     private var loadDuringQuestion = false
@@ -132,6 +138,10 @@ class WakeonStateMachine(
     private var heardCorrect: Boolean? = null
     private var pausedFrom: WakeonState? = null
     private var pausedAtMs = 0L
+    /** 아직 말하지 않은 "호응 + 이어지는 질문". 결과 표시 중·멈춤 중에도 남아 있다가 이어서 말한다. */
+    private var pendingStep: TalkStep? = null
+    /** 대화 질문을 말하거나 듣는 중(멈추면 그 문항은 버린다) */
+    private var talkInProgress = false
 
     // 의심 확인
     private enum class ConfirmMode { ASK, RECALL }
@@ -296,6 +306,14 @@ class WakeonStateMachine(
         publish()
     }
 
+    /** 트리거 설정(W-02 토글). 정차 중에만 바꿀 수 있고, C1은 끌 수 없다(AC-3.3, 3.4). */
+    fun setTriggerEnabled(id: TriggerId, on: Boolean) {
+        if (id == TriggerId.C1 || driving) return
+        if (on) triggers.enabled += id else triggers.enabled -= id
+        log("trigger_toggle", "type" to id.name, "on" to on)
+        publish()
+    }
+
     // ── 시연 신호 (DEMO_SCENARIO 3장)
 
     fun demoDriveMinutes(minutes: Int) {
@@ -322,12 +340,15 @@ class WakeonStateMachine(
         suspicion.clear()
         triggers.reset()
         memory.clear()
+        planner.reset()
+        pendingStep = null
+        talkInProgress = false
         summary = SessionSummary()
         precheckSummary = null
+        precheckAck = null
         kss = null
         precheckCorrect = 0
         precheckTotal = 0
-        driveCursor = 0
         questionNo = 0
         questionTotal = 0
         shortInterval = false
@@ -408,6 +429,10 @@ class WakeonStateMachine(
         if (now - since < config.sessionEndParkMin * MINUTE_MS) return
         // TODO(4-2): S-03에서 P 3분 + 대화 1턴 이상이면 S-17 주행 후 평가(F19, P1)
         triggers.reset()
+        // 세션이 끝나면 대화에서 들은 답(슬롯)을 지운다(SPEC 9장).
+        memory.clear()
+        planner.reset()
+        pendingStep = null
         log("session_summary", "warns" to summary.warns, "rests" to summary.rests)
         go(S01, "park_10min")
     }
@@ -419,7 +444,11 @@ class WakeonStateMachine(
         askQuestion(VoiceLines.V02) { r ->
             if (r is ListenResult.Answer) {
                 when (Grammar.intentIn(r.text, S01)) {
-                    UserIntent.YES -> startPrecheck()
+                    UserIntent.YES -> {
+                        // "응, 부산까지." → 목적지를 세션 메모리에(대화 줄기에 씀)
+                        Answer.destination(r.text)?.let { memory[Slot.DESTINATION] = it }
+                        startPrecheck()
+                    }
                     UserIntent.NO -> log("precheck_skip")
                     else -> Unit
                 }
@@ -431,6 +460,7 @@ class WakeonStateMachine(
         if (gear != Gear.P) return
         log("precheck_start")
         precheckIndex = 0
+        precheckAck = null
         kss = null
         precheckCorrect = 0
         precheckTotal = 0
@@ -442,13 +472,20 @@ class WakeonStateMachine(
         val q = QuestionBank.precheck[precheckIndex]
         questionNo = precheckIndex + 1
         questionTotal = QuestionBank.precheck.size
-        askQuestion(Line(q.id, q.text)) { r -> onPrecheckAnswer(q, r) }
+        val text = listOfNotNull(precheckAck, q.text).joinToString(" ")
+        precheckAck = null
+        askQuestion(Line(q.id, text)) { r -> onPrecheckAnswer(q, r) }
     }
 
     private fun onPrecheckAnswer(q: Question, r: ListenResult) {
         if (r is ListenResult.Answer) {
             val correct = QuestionBank.judge(q, r.text, memory)
             remember(q, r.text)
+            if (q.memoryKey == QuestionBank.KEY_PET) {
+                // 강아지·고양이: 답을 메모리에 두고 짧게 호응한 뒤 다음 문항으로(판정하지 않음)
+                q.options.firstOrNull { KoreanText.compact(r.text).contains(it) }?.let { memory[Slot.PET_PREF] = it }
+                precheckAck = Answer.core(r.text)?.let { "$it 좋죠." } ?: ConversationPlanner.GENERIC
+            }
             if (q.type == QuestionType.SELF_REPORT) {
                 kss = KoreanText.firstNumber(r.text)?.takeIf { it in 1..9 }
             } else {
@@ -495,30 +532,38 @@ class WakeonStateMachine(
         suspicion.newRound()
         noAnswerStreak = 0
         noStreak = 0
+        pendingStep = null
         go(S04, trigger.name)
-        askTalk()
+        askNextTalk()
     }
 
-    private fun askTalk() {
-        val q = nextDriveQuestion() ?: return endRound("no_question")
+    /** 이어 갈 질문이 있으면 그것을, 없으면 다음 주제의 첫 질문을 묻는다. */
+    private fun askNextTalk(prefix: String? = null) {
+        val step = pendingStep
+        pendingStep = null
+        if (step?.question != null) {
+            askTalk(step.question, ack = step.ack, prefix = prefix)
+        } else {
+            askTalk(planner.startNextThread(), ack = null, prefix = prefix)
+        }
+    }
+
+    /**
+     * 대화 문항 하나. 말하는 문장 = [prefix]("알겠어요. 그럼 보리 얘기 하나만 더요.") + [ack](호응) + 질문.
+     * 응답 시간은 이 문장 전체가 끝난 때부터 잰다(SPEC F4 깨우는 스몰토크 원칙).
+     */
+    private fun askTalk(q: Question, ack: String?, prefix: String?) {
         questionNo++
         questionTotal = config.talkRoundMax
         loadDuringQuestion = signals.highLoad
         heard = null
         heardCorrect = null
-        askQuestion(Line(q.id, q.text)) { r -> onTalkAnswer(q, r) }
-    }
-
-    /** 정해진 순서로 다음 문항. 기억할 답이 없는 기억 질문은 건너뛴다. */
-    private fun nextDriveQuestion(): Question? {
-        val bank = QuestionBank.drive
-        repeat(bank.size) {
-            val q = bank[driveCursor % bank.size]
-            driveCursor++
-            val usable = q.type != QuestionType.MEMORY_RECALL || memory[q.memoryKey] != null
-            if (usable) return q
+        talkInProgress = true
+        val text = listOfNotNull(prefix, ack, q.text).joinToString(" ")
+        askQuestion(Line(q.id, text)) { r ->
+            talkInProgress = false
+            onTalkAnswer(q, r)
         }
-        return null
     }
 
     private fun onTalkAnswer(q: Question, r: ListenResult) {
@@ -538,31 +583,55 @@ class WakeonStateMachine(
                 val resp = response(q, r, correct)
                 baseline.add(resp, "drive", ::onBaselineReady)
                 suspicion.record(resp)
-                log("talk_q", "type" to q.type.name, "latency_ms" to r.latencyMs, "correct" to correct, "valid" to resp.valid)
+                log("talk_q", "id" to q.id, "type" to q.type.name, "latency_ms" to r.latencyMs, "correct" to correct, "valid" to resp.valid)
+                // 대답에서 슬롯을 꺼내고 호응 + 이어지는 질문을 정한다(판정하지 않음).
+                val step = planner.onAnswer(r.text)
                 val s1 = suspicion.s1(baseline.thresholdMs)
                 val s2 = suspicion.s2()
                 if (s1 || s2) {
+                    // 호응은 버리고, 이어질 질문은 '아니' 뒤에 쓰려고 남겨 둔다(5-5).
+                    pendingStep = step.question?.let { TalkStep(null, it) }
                     log("suspect", "signal" to if (s1) "S1" else "S2")
                     return enterConfirm(ConfirmMode.ASK, if (s1) "S1" else "S2")
                 }
-                // W-05b: 인식 결과를 2초 보여 주고 다음으로. "틀렸어요" 대신 "아, 그러셨구나"
+                // W-05b: 인식 결과를 2초 보여 준다.
                 heard = r.text
                 heardCorrect = correct
                 phase = VoicePhase.RESULT
-                say(if (correct) VoiceLines.V11_CORRECT else VoiceLines.V11_OTHER)
-                after(T_RESULT, config.talkResultShowS * SECOND_MS) {
-                    heard = null
-                    heardCorrect = null
-                    continueRound()
+                val roundFull = questionNo >= config.talkRoundMax
+                if (step.question != null && !roundFull) {
+                    // 같은 줄기: 2초 뒤 "호응 + 이어지는 질문"을 함께 말한다.
+                    pendingStep = step
+                    after(T_RESULT, config.talkResultShowS * SECOND_MS) {
+                        heard = null
+                        heardCorrect = null
+                        askNextTalk()
+                    }
+                } else {
+                    // 줄기 끝(또는 라운드 끝): 호응만 하고, 다음 주제는 문항 간격 뒤에.
+                    pendingStep = null
+                    planner.dropThread()
+                    step.ack?.let { say(Line("V-11", it)) }
+                    after(T_RESULT, config.talkResultShowS * SECOND_MS) {
+                        heard = null
+                        heardCorrect = null
+                        continueRound()
+                    }
                 }
             }
             ListenResult.None -> {
                 noAnswerStreak++
+                planner.dropThread()
+                pendingStep = null
                 log("suspect", "signal" to "S3")
                 enterConfirm(ConfirmMode.RECALL, "S3")
             }
             // 인식 실패는 무응답으로 세지 않는다. 문항을 버리고 이어 간다.
-            ListenResult.Failed -> continueRound()
+            ListenResult.Failed -> {
+                planner.dropThread()
+                pendingStep = null
+                continueRound()
+            }
         }
     }
 
@@ -571,31 +640,41 @@ class WakeonStateMachine(
         if (questionNo >= config.talkRoundMax) return endRound("round_done")
         phase = VoicePhase.WAITING
         val minutes = if (shortInterval) config.talkIntervalShortMin else config.talkIntervalMin
-        after(T_NEXT, scaled(minutes * MINUTE_MS)) { askTalk() }
+        after(T_NEXT, scaled(minutes * MINUTE_MS)) { askNextTalk() }
     }
 
     private fun endRound(reason: String) {
         // TODO(4-2): C1 + 야간이면 의심 신호가 없어도 라운드 끝에 쉼터 제안 1회(5-3 강제 제안)
         nextRoundAtMs = clock.nowMs() + scaled(config.talkRoundGapMin * MINUTE_MS)
         shortInterval = false
+        pendingStep = null
+        planner.dropThread()
         go(S03, reason)
     }
 
     private fun pause() {
         pausedFrom = state
         pausedAtMs = clock.nowMs()
+        // 말하거나 듣던 문항은 버리고 다시 묻지 않는다(F4). 아직 말하지 않은 이어질 질문은 남긴다.
+        if (talkInProgress) {
+            talkInProgress = false
+            planner.dropThread()
+            pendingStep = null
+        }
         log("talk_paused", "reason" to signals.loadReasons.joinToString(",") { it.name })
         go(S05, "high_load")
         if (!signals.highLoad) after(T_RESUME, config.talkResumeAfterLoadS * SECOND_MS) { resume() }
     }
 
-    /** 새 문항으로 재개. 5분 넘게 멈췄으면 라운드를 처음부터. */
+    /** 재개: 남겨 둔 이어질 질문이 있으면 그것을, 없으면 새 주제로. 5분 넘게 멈췄으면 라운드를 처음부터. */
     private fun resume() {
         val pausedMs = clock.nowMs() - pausedAtMs
         log("talk_resumed", "after_s" to pausedMs / SECOND_MS)
         if (pausedMs > config.talkPauseResetMin * MINUTE_MS) {
             questionNo = 0
             suspicion.newRound()
+            pendingStep = null
+            planner.dropThread()
         }
         when (pausedFrom) {
             S06 -> {
@@ -604,7 +683,7 @@ class WakeonStateMachine(
             }
             else -> {
                 go(S04, "resume")
-                if (questionNo >= config.talkRoundMax) endRound("round_done") else askTalk()
+                if (questionNo >= config.talkRoundMax) endRound("round_done") else askNextTalk()
             }
         }
     }
@@ -641,8 +720,21 @@ class WakeonStateMachine(
                         if (noStreak >= config.suspectNoRepeat && suspicion.s1(baseline.thresholdMs)) {
                             offerRest(warnFirst = false, reason = "A6")
                         } else {
+                            // "알겠어요."로 받고 바로 다음 질문 하나. 그 뒤 문항 간격은 3분(5-5).
                             shortInterval = true
-                            continueRound()
+                            go(S04, "confirm_no")
+                            if (questionNo >= config.talkRoundMax) {
+                                pendingStep = null
+                                say(VoiceLines.V17) { endRound("round_done") }
+                            } else {
+                                val more = if (pendingStep?.question != null) {
+                                    planner.subject?.let { VoiceLines.fill(VoiceLines.V17_MORE, "이름" to it) }
+                                        ?: VoiceLines.V17_MORE_GENERIC
+                                } else {
+                                    null
+                                }
+                                askNextTalk(prefix = listOfNotNull(VoiceLines.V17.text, more).joinToString(" "))
+                            }
                         }
                     }
                     // '응', 애매한 답, "졸려", 알아듣지 못한 말 → 안전 쪽으로 '응'(A5)
@@ -663,7 +755,11 @@ class WakeonStateMachine(
                 }
             }
             // V-13, V-16으로도 못 알아들으면 문항을 버리고 대화로 돌아간다.
-            ListenResult.Failed -> continueRound()
+            ListenResult.Failed -> {
+                pendingStep = null
+                planner.dropThread()
+                continueRound()
+            }
         }
     }
 

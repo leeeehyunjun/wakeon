@@ -22,8 +22,6 @@ import com.wakeon.app.vehicle.Gear
 import com.wakeon.app.vehicle.TurnSignal
 import com.wakeon.app.vehicle.VehicleSignals
 import com.wakeon.app.voice.Line
-import com.wakeon.app.voice.QuestionBank
-import com.wakeon.app.voice.QuestionType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -101,19 +99,6 @@ private class Harness(consented: Boolean = true) {
         m.onHeard(t, text, latencyMs)
     }
 
-    /** 지금 질문에 맞는 대답을 한다(셈·선택·끝말잇기). */
-    fun answerCorrectly(latencyMs: Long) {
-        val line = untilListening()!!
-        val q = QuestionBank.all.first { it.text == line.text }
-        val text = when (q.type) {
-            QuestionType.ARITH -> q.answer.toString()
-            QuestionType.CHOICE -> q.options.first()
-            QuestionType.WORD_CHAIN -> "${q.seed!!.last()}리"
-            else -> "모름"
-        }
-        answer(text, latencyMs)
-    }
-
     fun noAnswer() {
         untilListening()
         val t = fx.listening!!
@@ -183,8 +168,10 @@ class StateMachineTest {
         h.m.demoTimeScale(60f)
         h.m.demoRestSeconds(30)
         h.vehicle(Gear.P)
+        // 시안 W-02처럼 C3(70km/h 10분)는 끈 상태로 시연한다
+        h.m.setTriggerEnabled(TriggerId.C3, false)
 
-        // 장면 1~4: S-01 → S-02 → S-01, 기준선 1.0초 확정
+        // 장면 1~4: S-01 → S-02 → S-01, 기준선 1.0초 확정. 강아지 대답에는 짧은 호응만 하고 다음 문항
         h.m.demoReset()
         assertEquals(S01, h.state)
         assertEquals("V-02", h.untilListening()?.id)
@@ -194,8 +181,10 @@ class StateMachineTest {
         h.answer("삼.", 1_000)
         assertEquals("7 더하기 5는요?", h.untilListening()?.text)
         h.answer("십이.", 1_000)
+        assertEquals("강아지와 고양이 중에 뭐가 좋아요?", h.untilListening()?.text)
+        h.answer("강아지.", 1_000)
+        assertEquals("강아지 좋죠. 점심은 뭐 드셨어요?", h.untilListening()?.text)
         h.answer("김치찌개요", 1_000)
-        h.answer("네 시간 반이요", 1_000)
         assertEquals(S01, h.state)
         assertEquals(PrecheckSummary(kss = 3, correct = 3, total = 3, baselineMs = 1_000), h.snap.precheck)
         assertEquals("V-06", h.fx.lastLines.single().id)
@@ -211,23 +200,28 @@ class StateMachineTest {
         // 화면은 분 단위로 올려서 보여 준다(17분 59초 → "18분 뒤")
         assertEquals(18L, (h.snap.nextTalkInMs!! + MINUTE_MS - 1) / MINUTE_MS)
 
-        // 장면 6: 연속 2시간 4분(C1) → S-04. 1·2번 질문은 앱이 묻고 편집에서 자른다.
+        // 연속 2시간 4분(C1) → S-04. 1·2번은 점심 줄기(앱이 묻고 편집에서 자른다)
         h.minute = 23 * 60 + 8
         h.m.demoDriveMinutes(124)
         h.tick(200)
         assertEquals(S04, h.state)
-        h.answer("구", 1_000)
-        h.answer("강아지", 1_000)
-        assertEquals("V-10", h.untilListening()?.id)
-        assertEquals(3, h.snap.questionNo)
-        h.answer("김치찌개요.", 1_200)
-        // 장면 7: W-05b 인식 결과 + "맞아요." 뒤 끝말잇기
-        assertEquals("김치찌개요.", h.snap.heard)
-        assertEquals("V-11", h.fx.lastLines.single().id)
-        assertEquals("V-12", h.untilListening()?.id)
-        h.answer("차표.", 1_700)
+        assertEquals("점심에 김치찌개 드셨다고 하셨죠. 맛있었어요?", h.untilListening()?.text)
+        h.answer("네, 맛있었어요.", 1_000)
+        assertEquals("다행이에요. 부산 가면 제일 먼저 뭐 드실 거예요?", h.untilListening()?.text)
+        h.answer("돼지국밥이요.", 1_000)
+        assertEquals("돼지국밥 좋죠.", h.fx.lastLines.single().text)
 
-        // 장면 8: 브레이크 + 방향지시등 → S-05, 꺼지고 10초 뒤 새 문항으로 재개
+        // 장면 6: 체크에서 들은 "강아지"로 시작하는 줄기 (3/6)
+        assertEquals("아까 강아지가 더 좋다고 하셨죠. 키우세요?", h.untilListening()?.text)
+        assertEquals(3, h.snap.questionNo)
+        h.answer("네, 한 마리요.", 1_200)
+        // 장면 7: 인식 결과 2초 표시 → 호응 + 이어지는 질문 (4/6)
+        assertEquals("네, 한 마리요.", h.snap.heard)
+        assertEquals("한 마리 키우시는구나. 이름이 뭐예요?", h.untilListening()?.text)
+        assertEquals(4, h.snap.questionNo)
+        h.answer("보리요.", 1_700)
+
+        // 장면 8: 결과 표시 중 브레이크 + 방향지시등 → S-05, 꺼지고 10초 뒤 이어서
         h.vehicle(Gear.D, 84f, brake = true, turn = TurnSignal.RIGHT)
         assertEquals(S05, h.state)
         h.vehicle(Gear.D, 99f)
@@ -235,19 +229,20 @@ class StateMachineTest {
         h.tick(10_000)
         assertEquals(S04, h.state)
 
-        // 장면 9: 2.8초 → 최근 3개 중 2개 > 1.5초 → S1 → S-06
-        assertEquals("아까 몇 시간 간다고 하셨죠?", h.untilListening()?.text)
-        h.answer("…네 시간… 반?", 2_800)
+        // 장면 9: "보리, 이름 예쁘네요. 보리는 몇 살이에요?" (5/6) → 2.8초 → 최근 3개 중 2개 > 1.5초 → S1 → S-06
+        assertEquals("보리, 이름 예쁘네요. 보리는 몇 살이에요?", h.untilListening()?.text)
+        assertEquals(5, h.snap.questionNo)
+        h.answer("…세 살… 인가?", 2_800)
         assertEquals(S06, h.state)
         assertEquals("V-15", h.untilListening()?.id)
 
-        // 장면 10: "아니, 괜찮아." → S-04 (문항 간격 3분)
+        // 장면 10~11: "아니, 괜찮아." → "알겠어요."로 받고 바로 같은 줄기의 다음 질문 (6/6)
         h.answer("아니, 괜찮아.", 1_500)
         assertEquals(S04, h.state)
-
-        // 장면 11~12: 사과! 무응답 → S-06 "제 말 들리세요?" → 다시 무응답
-        assertEquals("끝말잇기 해요. 사과!", h.untilListening()?.text)
+        assertEquals("알겠어요. 그럼 보리 얘기 하나만 더요. 보리는 산책 좋아해요?", h.untilListening()?.text)
         assertEquals(6, h.snap.questionNo)
+
+        // 장면 11~12: 무응답 → S-06 "제 말 들리세요?" → 다시 무응답
         h.noAnswer()
         assertEquals(S06, h.state)
         assertEquals("V-14", h.untilListening()?.id)
@@ -307,10 +302,12 @@ class StateMachineTest {
         assertEquals(SessionSummary(rests = 1, restMinutes = h.snap.summary.restMinutes, warns = 1), h.snap.summary)
         h.drain()
 
-        // 장면 22: D → S-03, 연속 주행 0분부터
+        // 장면 22: D → S-03, 연속 주행 0분부터. 23:43 야간이라 다음 말 걸기는 30분 뒤(C2)
+        h.minute = 23 * 60 + 43
         h.vehicle(Gear.D, 92f)
         assertEquals(S03, h.state)
         assertTrue(h.snap.driveMs < MINUTE_MS)
+        assertEquals(30L, (h.snap.nextTalkInMs!! + MINUTE_MS - 1) / MINUTE_MS)
 
         assertEquals(
             listOf("S-01", "S-02", "S-01", "S-03", "S-04", "S-05", "S-04", "S-06", "S-04", "S-06", "S-07", "S-08", "S-09", "S-11", "S-12", "S-14", "S-16", "S-03"),
@@ -327,7 +324,7 @@ class StateMachineTest {
         h.answer("삼", 1_000)
         h.noAnswer()
         h.noAnswer()
-        h.answer("네 시간", 1_000)
+        h.answer("김치찌개", 1_000)
         assertEquals(S01, h.state)
         assertEquals("V-07", h.fx.lastLines.single().id)
         assertEquals(null, h.snap.precheck?.baselineMs)
@@ -380,7 +377,7 @@ class StateMachineTest {
     }
 
     @Test
-    fun `대화 중 "그만"은 이번 라운드만 멈춘다`() {
+    fun `대화 중 그만은 이번 라운드만 멈춘다`() {
         val h = Harness()
         h.vehicle(Gear.P)
         h.m.demoReset()
@@ -404,7 +401,7 @@ class StateMachineTest {
         h.minute = 16 * 60
         h.m.demoDriveMinutes(121)
         h.tick(200)
-        repeat(6) { h.answerCorrectly(1_000) }
+        repeat(6) { h.answer("네", 1_000) }
         h.drain()
         h.tick(3_000)
         assertEquals(S03, h.state)

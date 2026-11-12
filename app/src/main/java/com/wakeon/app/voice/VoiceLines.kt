@@ -15,14 +15,20 @@ object VoiceLines {
     val V05 = Line("V-05", "출발 전에 15분 쉬고 가시는 걸 권해요.")
     val V06 = Line("V-06", "준비됐어요. 졸릴 만한 때 제가 먼저 말 걸게요.")
     val V07 = Line("V-07", "주행 초반에 조금 더 여쭤볼게요.")
-    val V10 = Line("V-10", "점심에 뭐 드셨다고 하셨죠?")
-    val V11_CORRECT = Line("V-11", "맞아요.")
-    val V11_OTHER = Line("V-11", "아, 그러셨구나.")
-    val V12 = Line("V-12", "그럼 끝말잇기 하나만. 기차!")
+    /** 줄기 첫 질문 예시(체크에서 들은 답으로 시작). 실제 문장은 [ConversationPlanner] 템플릿. */
+    val V10 = Line("V-10", "아까 강아지가 더 좋다고 하셨죠. 키우세요?")
+    /** 호응 예시: 핵심어를 되받는 짧은 말. 판정하지 않는다("틀렸어요" 금지). */
+    val V11_EXAMPLES = listOf("강아지 좋죠.", "한 마리 키우시는구나.", "보리, 이름 예쁘네요.", "그렇군요.").map { Line("V-11", it) }
+    /** 호응 + 이어지는 질문 예시 */
+    val V12 = Line("V-12", "한 마리 키우시는구나. 이름이 뭐예요?")
     val V13 = Line("V-13", "잘 못 들었어요. 한 번만 다시 말해 주세요.")
     val V14 = Line("V-14", "제 말 들리세요?")
     val V15 = Line("V-15", "혹시 졸리세요? '응' 또는 '아니'로 말해 주세요.")
     val V16 = Line("V-16", "'응'이나 '아니'로만 대답해 주세요.")
+    /** 의심 확인에 '아니' → 받고 바로 다음 질문 하나(5-5). 줄기를 이어 갈 때는 [V17_MORE]를 붙인다. */
+    val V17 = Line("V-17", "알겠어요.")
+    const val V17_MORE = "그럼 {이름} 얘기 하나만 더요."
+    const val V17_MORE_GENERIC = "그럼 하나만 더 여쭤볼게요."
     val V20 = Line("V-20", "졸음 신호가 보여요. 가까운 쉼터로 안내할게요.")
     const val V21 = "{거리}km 앞 {쉼터}를 경유지로 넣을까요?"
     const val V22 = "30km 안에 졸음쉼터가 없어요. {거리}km 앞 {휴게소}를 넣을까요?"
@@ -67,7 +73,8 @@ object VoiceLines {
 
     /** 금지 표현·길이 검사용: 모든 대사를 예시 값으로 채운 목록. */
     fun allForCheck(): List<Line> = listOf(
-        V01, V02, V03, V05, V06, V07, V10, V11_CORRECT, V11_OTHER, V12, V13, V14, V15, V16, V20,
+        V01, V02, V03, V05, V06, V07, V10, *V11_EXAMPLES.toTypedArray(), V12, V13, V14, V15, V16,
+        V17, Line("V-17", fill(V17_MORE, "이름" to "보리")), Line("V-17", V17_MORE_GENERIC), V20,
         v21("12", "가나졸음쉼터"), v22("27", "다라휴게소"), V22B, v23("12", "가나졸음쉼터"),
         v24("가나졸음쉼터", 8), V24B, v25("1", "가나졸음쉼터", "오른쪽"), v26("38"), V27, V28,
         v29("12", "오른쪽"), V30_A, V30_B, V31, V32, v33(15), V34_RECLINE, V34_UPRIGHT, V35, V36,
@@ -103,6 +110,8 @@ internal object Josa {
         "가" to "이",
         "는" to "은",
         "와" to "과",
+        "랑" to "이랑",
+        "면" to "이면",
     )
 
     fun matchAfter(word: String, following: String): Pair<Int, String> {

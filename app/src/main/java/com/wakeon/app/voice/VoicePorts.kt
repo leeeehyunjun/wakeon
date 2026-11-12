@@ -40,13 +40,18 @@ interface SoundPlayer {
 }
 
 /**
- * 경고음·기상 알람: `assets/sounds/warn_1~3.wav`, `alarm_1~3.wav` (tools/make_sounds.py로 만듦).
+ * 경고음·기상 알람: `assets/sounds/warn_1~3.wav`, `alarm_1~3.wav` (tools/make_sounds.py로 만듦, 48kHz·16bit).
  * 앱 자체 알람 용도로 재생하고, 단계마다 소리 파일 자체가 커진다(처음부터 최대 음량 금지).
+ * 3단계 경고음 동안만 [warnLevel3RaiseSteps]칸 올린다: 앱이 스트림 음량을 바꿀 수 없어서
+ * 1·2단계를 그만큼 낮춘 크기로 틀고 3단계는 원래 크기로 튼다.
  */
 class AssetSoundPlayer(
     private val context: Context,
     private val audio: AudioCoordinator,
+    warnLevel3RaiseSteps: Int,
+    volumeStepDb: Double,
 ) : SoundPlayer {
+    private val lowerWarnGain = Math.pow(10.0, -warnLevel3RaiseSteps * volumeStepDb / 20.0).toFloat()
     private val main = Handler(Looper.getMainLooper())
     private var player: MediaPlayer? = null
     private var job = 0L
@@ -64,6 +69,8 @@ class AssetSoundPlayer(
             val p = MediaPlayer()
             context.assets.openFd(file).use { fd -> p.setDataSource(fd.fileDescriptor, fd.startOffset, fd.length) }
             p.setAudioAttributes(audio.alarmAttributes)
+            val gain = if (sound is Sound.Warn && sound.level < 3) lowerWarnGain else 1f
+            p.setVolume(gain, gain)
             p.setOnCompletionListener {
                 main.post {
                     if (my != job) return@post
@@ -74,7 +81,7 @@ class AssetSoundPlayer(
             p.prepare()
             p.start()
             player = p
-            Log.i(TAG, "sound_play file=$file")
+            Log.i(TAG, "sound_play file=$file gain=${"%.2f".format(gain)}")
         } catch (e: Exception) {
             Log.w(TAG, "sound_failed file=$file ${e.javaClass.simpleName} ${e.message}")
             audio.release()

@@ -60,6 +60,13 @@ data class WakeonConfig(
     /** warn.step_s: 단계 간격 · 단계 수 */
     val warnStepS: Int = 5,
     val warnLevels: Int = 3,
+    /**
+     * 3단계 경고음을 재생하는 동안 올리는 음량 칸 수(2~3). 차량용 안드로이드는 앱이 스트림·차량 음량을 바꿀 수 없어서
+     * 1·2단계를 이만큼 낮춰 틀고 3단계만 원래 크기로 튼다(docs/DECISIONS.md 2026-11-13).
+     */
+    val warnLevel3RaiseSteps: Int = 2,
+    /** 음량 한 칸의 크기(dB) */
+    val volumeStepDb: Double = 3.0,
 
     // ── 쉼터 (F8)
     /** rest.search_km: 진행 방향 탐색 거리 */

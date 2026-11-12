@@ -13,6 +13,7 @@ import com.wakeon.app.config.WakeonConfig.Companion.SECOND_MS
 import com.wakeon.app.core.Effects
 import com.wakeon.app.core.MonoClock
 import com.wakeon.app.core.Sound
+import com.wakeon.app.core.TriggerId
 import com.wakeon.app.core.WakeonSnapshot
 import com.wakeon.app.core.WakeonStateMachine
 import com.wakeon.app.core.WallClock
@@ -97,7 +98,7 @@ class WakeonRuntime(context: Context) {
             ),
         ),
     )
-    private val sounds: SoundPlayer = AssetSoundPlayer(app, audio)
+    private val sounds: SoundPlayer = AssetSoundPlayer(app, audio, config.warnLevel3RaiseSteps, config.volumeStepDb)
     private var lastSpeechEndMs = 0L
 
     private val effects = object : Effects {
@@ -204,6 +205,9 @@ class WakeonRuntime(context: Context) {
         e.float("timeScale")?.let { machine.demoTimeScale(it) }
         e.int("restSec")?.let { machine.demoRestSeconds(it) }
         e.string("clock")?.let { wallClock.set(it) }
+        // 트리거 토글: 시안 W-02처럼 C3(70km/h 10분)를 끈 상태로 시연할 때 --ez c3 false
+        e.bool("c2")?.let { machine.setTriggerEnabled(TriggerId.C2, it) }
+        e.bool("c3")?.let { machine.setTriggerEnabled(TriggerId.C3, it) }
 
         e.string("gear")?.let { g -> parseGear(g)?.let { demoVehicle.gear.value = it } }
         e.float("speed")?.let { demoVehicle.speedKmh.value = it }

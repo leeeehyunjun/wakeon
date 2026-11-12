@@ -414,3 +414,20 @@ stt.stop()
 
 에뮬레이터에서 마이크로 직접 말해 보려면: 에뮬레이터 옆 도구 막대 ⋯ → Microphone → "Virtual microphone uses host audio input" 켜기, 그리고
 `adb shell pm grant --user current com.wakeon.app android.permission.RECORD_AUDIO` (단계 5의 동의 화면이 생기면 앱이 직접 허락을 요청한다).
+
+---
+
+## 10. 소리 깨짐 진단과 녹화 (단계 4 보완, 2026-11-13)
+
+| 확인 | 결과 |
+|---|---|
+| scrcpy 5.0.1 녹음 (`--audio-source=output`, `playback`) | **무음.** 이 에뮬레이터의 소리는 차량용 출력 버스(`AUDIO_DEVICE_OUT_BUS`: bus0_media, bus2_voice_command, bus5_alarm …)로만 나가고, scrcpy가 쓰는 내부 녹음 경로가 없다. `playback` 방식은 미디어·게임 용도만 잡는데 우리 TTS는 ASSISTANT, 경고음은 ALARM 용도 |
+| 에뮬레이터 출력을 WAV로 받기 (`QEMU_AUDIO_DRV=wav QEMU_WAV_PATH=…`) | 경고음 3개가 원본과 모양 일치(0.998~1.000), 10ms 단위 끊김 0 → **에뮬레이터 안에서 만든 소리는 멀쩡하다** |
+| 결론 | 깨짐은 에뮬레이터 → 맥 CoreAudio 재생 단계에서 생긴다(QEMU CoreAudio 기본 버퍼 512프레임 × 4개) |
+| 조치 | AVD 4코어·4GB → 6코어·6GB(원래 설정 백업 `recordings/avd_config_backup.ini`), `QEMU_COREAUDIO_BUFFER_SIZE=2048`, `QEMU_COREAUDIO_BUFFER_COUNT=8`로 켜기(`demo/start_emulator.sh`) |
+| 조치 뒤 기기 안 지표 | 오디오 장치 데이터 부족 경고(`Not supplying enough data to HAL`) 52회 → 13회(voice_check 한 번, TTS 약 30초 + 경고음 3개). TTS 재생 14건 중 13건이 데이터 부족 0회 |
+| 맥 스피커로 실제로 들리는 소리 | 사람이 들어서 확인해야 한다(맥 출력은 녹음할 방법이 없음) |
+| 에뮬레이터 자체 녹화 (`adb emu screenrecord start/stop`) | webm(VP9 + Vorbis 44.1kHz 스테레오). **맥 재생 전 소리를 담아 깨짐 없음**(튐 0, 10ms 넘는 끊김 0). 소리 패킷은 무음을 건너뛰고 시각만 기록하므로 변환할 때 `aresample=async=1`로 빈 곳을 채우면 영상과 맞는다(앱 로그 시각과 일치 확인). 녹화 음량이 작아(최고 약 −28dBFS) `loudnorm`으로 −16 LUFS에 맞춘다 → `demo/record.sh` |
+| 음량 칸 | 알람 스트림은 1~7 중 이미 7이고 `setStreamVolume`이 무시된다. 실제 음량은 차량 음량 그룹(0~45, 현재 20)이 정하며 앱은 바꿀 수 없다(시스템 권한 필요) |
+
+시연 대답을 adb로 넣을 때 띄어쓰기가 있으면 작은따옴표로 한 번 더 감싼다: `--es answer "'네, 한 마리요.'"` (안 감싸면 "네,"까지만 들어감).

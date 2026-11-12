@@ -57,20 +57,14 @@ class GrammarTest {
 
 class QuestionBankTest {
     @Test
-    fun `시연 대답의 정답 판정`() {
+    fun `출발 전 체크 대답의 정답 판정`() {
         val memory = mutableMapOf<String, String>()
         val p = QuestionBank.precheck
         assertTrue(QuestionBank.judge(p[0], "삼.", memory))
         assertTrue(QuestionBank.judge(p[1], "십이.", memory))
-        memory[QuestionBank.KEY_LUNCH] = QuestionBank.memoryCore("김치찌개요")
-        memory[QuestionBank.KEY_HOURS] = QuestionBank.memoryCore("네 시간 반이요")
-        assertEquals("김치찌개", memory[QuestionBank.KEY_LUNCH])
-
-        val d = QuestionBank.drive.associateBy { it.id }
-        assertTrue(QuestionBank.judge(d.getValue("V-10"), "김치찌개요.", memory))
-        assertTrue(QuestionBank.judge(d.getValue("V-12"), "차표.", memory))
-        assertFalse(QuestionBank.judge(d.getValue("V-12"), "사과", memory))
-        assertTrue(QuestionBank.judge(d.getValue("Q-D5"), "…네 시간… 반?", memory))
+        assertTrue(QuestionBank.judge(p[2], "강아지.", memory))
+        assertTrue(QuestionBank.judge(p[3], "김치찌개요", memory))
+        assertEquals("김치찌개", QuestionBank.memoryCore("김치찌개요"))
         assertTrue(QuestionBank.judge(QuestionBank.recheck[0], "팔.", memory))
         assertFalse(QuestionBank.judge(QuestionBank.recheck[0], "칠", memory))
     }
@@ -79,8 +73,8 @@ class QuestionBankTest {
     fun `시연 질문 문장이 은행에 있다`() {
         val texts = QuestionBank.all.map { it.text }
         listOf(
-            "지금 졸린 정도를 1에서 9로 말해 주세요.", "7 더하기 5는요?", "점심에 뭐 드셨다고 하셨죠?",
-            "그럼 끝말잇기 하나만. 기차!", "아까 몇 시간 간다고 하셨죠?", "끝말잇기 해요. 사과!", "12 빼기 4는요?",
+            "지금 졸린 정도를 1에서 9로 말해 주세요.", "7 더하기 5는요?", "강아지와 고양이 중에 뭐가 좋아요?",
+            "점심은 뭐 드셨어요?", "12 빼기 4는요?",
         ).forEach { assertTrue("없음: $it", it in texts) }
     }
 }
