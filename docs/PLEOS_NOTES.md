@@ -331,3 +331,50 @@ private val naviEventListener = object : NaviHelperEventListener {
 | `android.permission.RECORD_AUDIO` | **거부 상태** → 앱이 실행 중 허락을 요청해야 함(단계 4) |
 
 시연 신호 수신기는 `android.permission.DUMP`를 가진 보낸 쪽만 받는다. adb 셸은 이 권한이 있어 `am broadcast`가 그대로 통한다.
+
+**주의: 에뮬레이터의 앱 사용자는 10이다**(`adb shell am get-current-user` → 10). adb로 권한을 줄 때는 `--user current`를 붙인다.
+붙이지 않으면 사용자 0에만 허락돼 앱에서는 여전히 거부 상태다(속성 설정 조회도 null이 나온다).
+
+```bash
+adb shell pm grant --user current com.wakeon.app android.car.permission.CAR_SPEED
+```
+
+---
+
+## 8. 단계 3 확인 결과 (2026-11-13)
+
+### 실제 차량 신호
+
+앱 로그(`adb logcat -s Wakeon`)의 `vehicle … real_gear= real_speed= real_brake= real_turn=`로 확인했다.
+
+| 신호 | 읽는 곳 | 에뮬레이터 결과 |
+|---|---|---|
+| 기어 | `GEAR_SELECTION` + Pleos SDK 숨은 기어 API | P 읽힘. Virtual Console에서 D로 바꾸면 D |
+| 속도 | `PERF_VEHICLE_SPEED` | 0.0 읽힘. Virtual Console에서 60으로 바꾸면 60.000004 |
+| 브레이크 페달 | Pleos `Brake` | false. Virtual Console 브레이크 50%면 true |
+| 방향지시등 | Pleos `TurnSignal` | OFF. Virtual Console "Blink left"면 LEFT |
+
+시연 값이 한 번이라도 들어온 항목은 실제 값보다 시연 값이 우선한다(`MergedVehicleSource`). 앱을 다시 시작하면 시연 값은 지워진다.
+
+### Pleos Connect Virtual Console
+
+- 여는 법: `adb forward tcp:8088 tcp:8088` → 브라우저에서 `http://127.0.0.1:8088/`
+- 문서의 카드 목록에는 속도가 없지만, 실제로는 HTTP로 속도도 바꿀 수 있다. 화면 뒤에서 쓰는 주소:
+  - `PUT /vehicle/gear?gear=Park|Reverse|Neutral|Drive` (Pleos 전용 속성 `VENDOR_GEAR_SELECTION` 0x21400400)
+  - `PUT /vehicle/controls?speed=60&accelerator=0&brake=0` (속도 km/h, 페달 %)
+  - `PUT /vehicle/turn-signal?mode=Off|BlinkLeft|BlinkRight|FlashLeft|FlashRight`
+  - `GET /vehicle/state` (현재 값, `bridge_ready`)
+- **브라우저 창(또는 `POST /browser/session?client=아무이름`을 1초마다 보내는 것)이 열려 있어야** 차량 쪽 연결(DDS)이 살아난다. 없으면 위 주소가 503을 돌려준다.
+
+### 내비 경유지 추가
+
+- `NaviHelper` 연결은 된다(`navi connected`).
+- 목적지(경로)가 없는 상태에서 `addWaypoint()`를 부르면 성공·실패 콜백이 오지 않고 5초 시간 초과로 끝난다. 에뮬레이터 지도는 타일이 비어 있고 현재 위치는 성남시 수정구 시흥동(37.4127, 127.0947)이다.
+- 그래서 시연에서는 경유지 추가가 실패하면 앱 안 표시(W-10)로 이어 가고 로그에 `navi_result result=demo_fallback`을 남긴다. README에 "에뮬레이터 내비에 경로가 없어 경유지 추가는 앱 안 표시로 대체했다"고 밝힌다.
+- `assets/demo_route.json`의 쉼터에는 아직 좌표가 없다(`lat`, `lng`를 넣으면 경유지 추가를 시도한다).
+- 진단용 시연 신호: `--ez naviProbe true` (Pleos 문서 예시 좌표로 경유지를 넣어 보고 결과만 로그에 남김)
+
+### 앱이 가려지면 멈춘다
+
+내비 앱이 앞으로 나와 Wakeon 창이 가려지자, 안드로이드가 뒤로 간 앱을 얼려 타이머와 시연 대답 처리가 다음 시연 신호가 올 때까지 멈췄다.
+시연 녹화 중에는 Wakeon 창이 항상 보여야 한다. 창이 없을 때도 동작하게 하려면 포그라운드 서비스가 필요하다(SPEC T6, 1차 범위 밖).

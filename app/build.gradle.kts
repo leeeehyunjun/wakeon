@@ -8,6 +8,8 @@ plugins {
 android {
     namespace = "com.wakeon.app"
     compileSdk = 34
+    // 속도·기어(CarPropertyManager). 기기에 이미 있어 매니페스트 선언은 필요 없다(optional.json manifest=false).
+    useLibrary("android.car")
 
     defaultConfig {
         applicationId = "com.wakeon.app"

@@ -1,0 +1,9 @@
+{
+  "route": "경부고속도로 · 부산 방향",
+  "totalKm": 400,
+  "restAreas": [
+    { "name": "○○졸음쉼터", "type": "drowsy_shelter", "km": 164.0, "exit": "오른쪽" },
+    { "name": "△△휴게소", "type": "service_area", "km": 179.0, "exit": "오른쪽" },
+    { "name": "다음 졸음쉼터", "type": "drowsy_shelter", "km": 202.0, "exit": "오른쪽" }
+  ]
+}
