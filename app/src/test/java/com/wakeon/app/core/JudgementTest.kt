@@ -111,13 +111,22 @@ class DriveTriggersTest {
     private val night = 22 * 60 + 46
 
     @Test
-    fun `C1 - 연속 주행 2시간을 넘는 순간 라운드 간격과 상관없이 시작한다`() {
+    fun `시연 건너뛰기로 C1을 넘으면 라운드 간격과 상관없이 바로 시작한다`() {
         val t = DriveTriggers(config)
         t.jumpDriveTo(102 * MINUTE_MS, night, speedKmh = 98f)
         assertNull(t.due(night, gapOver = false))
         t.jumpDriveTo(124 * MINUTE_MS, night, speedKmh = 98f)
         assertEquals(TriggerId.C1, t.due(night, gapOver = false))
         assertNull("한 번 넘은 뒤에는 간격을 따른다", t.due(night, gapOver = false))
+    }
+
+    @Test
+    fun `평소에 C1을 넘을 때는 라운드 간격을 따른다`() {
+        val t = DriveTriggers(config)
+        t.advance(119 * MINUTE_MS, driving = true, speedKmh = 60f)
+        t.advance(2 * MINUTE_MS, driving = true, speedKmh = 60f)
+        assertNull(t.due(16 * 60, gapOver = false))
+        assertEquals(TriggerId.C1, t.due(16 * 60, gapOver = true))
     }
 
     @Test

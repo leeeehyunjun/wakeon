@@ -1,9 +1,17 @@
 {
   "route": "경부고속도로 · 부산 방향",
-  "totalKm": 400,
+  "totalKm": 416,
+  "kmNote": "km는 서울 기점 거리 = 416 - 이정(이정은 부산 기점). 칠곡휴게소는 이정 자료가 없어 앞뒤 졸음쉼터 이정과 좌표로 추정했다.",
+  "checkedAt": "2026-11-13",
+  "sources": [
+    "한국도로공사_졸음쉼터 설치현황_20260801 (노선·이정·방향·명칭): https://www.data.go.kr/data/15043710/fileData.do",
+    "전국졸음쉼터표준데이터 · 한국도로공사_졸음쉼터, 데이터기준일자 2026-02-25 (위도·경도): https://www.data.go.kr/data/15028203/fileData.do",
+    "한국도로공사_휴게소 현황_20260828 (휴게소명·노선): https://www.data.go.kr/data/15164198/fileData.do",
+    "고속도로 공공데이터 포털 휴게소 위치정보 API (휴게소 위도·경도): https://data.ex.co.kr/openapi/locationinfo/locationinfoRest"
+  ],
   "restAreas": [
-    { "name": "○○졸음쉼터", "type": "drowsy_shelter", "km": 164.0, "exit": "오른쪽" },
-    { "name": "△△휴게소", "type": "service_area", "km": 179.0, "exit": "오른쪽" },
-    { "name": "다음 졸음쉼터", "type": "drowsy_shelter", "km": 202.0, "exit": "오른쪽" }
+    { "name": "선기졸음쉼터", "type": "drowsy_shelter", "km": 238.0, "exit": "오른쪽", "ijeong": 178.0, "lat": 36.13630671, "lng": 128.3161787, "address": "경상북도 구미시 도량동 472-4" },
+    { "name": "칠곡휴게소", "type": "service_area", "km": 258.0, "exit": "오른쪽", "ijeong": 158.0, "ijeongEstimated": true, "lat": 36.019492, "lng": 128.429257, "sourceName": "칠곡(부산)휴게소" },
+    { "name": "하빈졸음쉼터", "type": "drowsy_shelter", "km": 270.0, "exit": "오른쪽", "ijeong": 146.0, "lat": 35.9323362657, "lng": 128.4744569868, "address": "대구광역시 달성군 하빈면 대평리 산66-3" }
   ]
 }

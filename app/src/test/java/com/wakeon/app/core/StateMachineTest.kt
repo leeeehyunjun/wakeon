@@ -38,9 +38,9 @@ private class Harness(consented: Boolean = true) {
     val route = DemoRoute(
         "경부고속도로 · 부산 방향", 400.0,
         listOf(
-            RestArea("○○졸음쉼터", RestAreaType.DROWSY_SHELTER, 164.0, "오른쪽"),
-            RestArea("△△휴게소", RestAreaType.SERVICE_AREA, 179.0, "오른쪽"),
-            RestArea("다음 졸음쉼터", RestAreaType.DROWSY_SHELTER, 202.0, "오른쪽"),
+            RestArea("선기졸음쉼터", RestAreaType.DROWSY_SHELTER, 238.0, "오른쪽"),
+            RestArea("칠곡휴게소", RestAreaType.SERVICE_AREA, 258.0, "오른쪽"),
+            RestArea("하빈졸음쉼터", RestAreaType.DROWSY_SHELTER, 270.0, "오른쪽"),
         ),
     )
     val m = WakeonStateMachine(WakeonConfig(), { now }, { minute }, fx, { n, p -> logs += n to p }, route, consented)
@@ -252,7 +252,7 @@ class StateMachineTest {
         assertEquals(S06, h.state)
         assertEquals("V-14", h.untilListening()?.id)
         assertEquals(1, h.snap.noAnswerCount)
-        h.m.onRoutePosition(152.0)
+        h.m.onRoutePosition(226.0)
         h.noAnswer()
 
         // 장면 13: 알림음 1→3단계(5초 간격) 뒤 V-20 → S-08
@@ -261,23 +261,23 @@ class StateMachineTest {
         assertEquals(listOf(1, 2, 3), h.fx.sounds.filterIsInstance<Sound.Warn>().map { it.level })
         assertTrue("V-20" in h.spokenIds())
 
-        // 장면 14: "12km 앞 ○○졸음쉼터를 경유지로 넣을까요?" → "어… 응." → S-09
+        // 장면 14: "12km 앞 선기졸음쉼터를 경유지로 넣을까요?" → "어… 응." → S-09
         assertEquals(S08, h.state)
-        assertEquals("12km 앞 ○○졸음쉼터를 경유지로 넣을까요?", h.fx.lastLines.single().text)
-        assertEquals("△△휴게소", h.snap.offer?.next?.name)
+        assertEquals("12km 앞 선기졸음쉼터를 경유지로 넣을까요?", h.fx.lastLines.single().text)
+        assertEquals("칠곡휴게소", h.snap.offer?.next?.name)
         h.answer("어… 응.", 1_300)
         assertEquals(S09, h.state)
 
         // 장면 15: 경유지 추가 성공 → V-24
         val (token, rest) = h.fx.waypoint!!
-        assertEquals("○○졸음쉼터", rest.name)
+        assertEquals("선기졸음쉼터", rest.name)
         h.m.onWaypointResult(token, ok = true)
-        assertEquals("○○졸음쉼터를 경유지로 넣었어요. 8분 뒤 도착해요.", h.fx.lastLines.single().text)
+        assertEquals("선기졸음쉼터를 경유지로 넣었어요. 8분 뒤 도착해요.", h.fx.lastLines.single().text)
         h.drain()
 
         // 장면 16: 1km 전 안내
-        h.m.onRoutePosition(163.0)
-        assertEquals("1km 앞 ○○졸음쉼터예요. 오른쪽으로 빠지세요.", h.fx.lastLines.single().text)
+        h.m.onRoutePosition(237.0)
+        assertEquals("1km 앞 선기졸음쉼터예요. 오른쪽으로 빠지세요.", h.fx.lastLines.single().text)
         h.drain()
 
         // 장면 17: P · 0km/h + 도착 → S-11, 두 문장 → "응, 잘게." → S-12
@@ -303,7 +303,7 @@ class StateMachineTest {
         h.answer("십삼", 1_000)
         h.answer("육", 1_000)
         assertEquals(S16, h.state)
-        assertEquals("다음 쉼터는 38km 앞이에요. 졸리면 바로 쉬세요.", h.fx.lastLines.single().text)
+        assertEquals("다음 쉼터는 32km 앞이에요. 졸리면 바로 쉬세요.", h.fx.lastLines.single().text)
         assertEquals(SessionSummary(rests = 1, restMinutes = h.snap.summary.restMinutes, warns = 1), h.snap.summary)
         h.drain()
 
@@ -419,7 +419,7 @@ class StateMachineTest {
         h.m.demoReset()
         h.drain()
         h.vehicle(Gear.D, 90f)
-        h.m.onRoutePosition(152.0)
+        h.m.onRoutePosition(226.0)
         h.m.demoDriveMinutes(121)
         h.tick(200)
         h.answer("졸려", 1_000)
