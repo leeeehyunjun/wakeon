@@ -1,0 +1,19 @@
+# Android / Gradle
+.gradle/
+build/
+*/build/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+*.iml
+.idea/
+.DS_Store
+
+# 서명 키와 비밀값 (절대 올리지 않음)
+keystore.properties
+*.jks
+*.keystore
+
+# 시연 녹화 원본 (용량 큼)
+recordings/
