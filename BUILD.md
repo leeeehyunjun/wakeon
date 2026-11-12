@@ -1,7 +1,7 @@
 # Wakeon 빌드 계획 (1차 제출: 2026-11-15 23:59)
 
 각 단계 끝에서 멈추고 `CLAUDE.md` 2장 형식으로 한국어 보고 → 커밋 → "다음 단계로 갈까요?".
-목표 일정: 단계 0~3 목요일, 4~6 금요일, 7~8 토요일 오전, 토요일 오후 녹화, 일요일 제출.
+목표 일정: 단계 0~3 금요일 오전, 4~5 금요일 오후~밤, 6~8 토요일 오전, 토요일 오후 녹화, 일요일 제출.
 
 ---
 
@@ -63,19 +63,20 @@
 
 `docs/DEMO_SCENARIO.md` 2장의 화면을 **이 순서로** 만든다. 각 화면은 상태 하나에 대응하는 Composable(`ui/screens/W05Talk.kt` 식). 문구는 표의 "화면에 꼭 있어야 할 것"과 VoiceLines 그대로.
 
-1. 공통: 테마(DESIGN 3·4장), 헤더, 음성 상태 오브, 하단 안내 한 줄, 응/아니 버튼(누르면 음성 대답과 같은 의도).
-2. W-02 홈 → W-03 출발 전 체크 → W-03b 준비 완료
+0. 먼저 Figma MCP 연결을 확인한다(`DESIGN.md` 1장). 안 되면 멈추고 보고.
+1. 공통: Pretendard 글꼴, 디자인 시스템(색 16개·글자 스타일 20개, `DESIGN.md` 2장)을 `ui/theme`에 정의. 시안에서 반복되는 요소(헤더, 상태 칩, 음성 상태 표시, 하단 안내 한 줄, 응/아니 버튼 — 누르면 음성 대답과 같은 의도)를 `get_design_context`로 확인해 공통 Composable로 만든다.
+2. W-01 모드 선택·동의(첫 실행 1회) → W-02 홈 → W-03 출발 전 체크 → W-03b 준비 완료
 3. W-04 주행 대기 → W-05 가벼운 대화 → W-05b 대답 인식 → W-06 대화 멈춤
 4. W-07 의심 확인 → W-07b 무응답 → W-08 단계적 경고
 5. W-09 쉼터 제안 → W-10 경유지 추가 완료 → W-10b 1km 전 안내
 6. W-12 도착 → W-13 휴식 모드 → W-13b 기상 알람
 7. W-15 재출발 체크 → W-16 출발 안내
 
-- 정차 화면도 1차 제출은 세로 레이아웃 하나로 충분하다. 가로 창이면 가운데 정렬로 늘린다.
-- 화면마다 Compose `@Preview`(840×1184)를 둔다.
-- Figma MCP가 있으면 화면마다 Design 페이지 시안과 나란히 비교해 차이를 고친다.
+- 화면마다 `DESIGN.md` 3장의 앱 창 node를 `get_design_context` + `get_screenshot`으로 보고 만든다. 정차 화면은 시안대로 가로 창(1700×1184), 주행 화면은 세로 창(840×1184).
+- 화면마다 Compose `@Preview`(시안 크기)를 둔다.
+- 한 화면을 끝낼 때마다 에뮬레이터 캡처와 시안 스크린샷을 비교해 다른 점을 고친다. 문구를 고친 곳은 `docs/DESIGN_DIFF.md`에 적는다.
 
-**완료:** 에뮬레이터에서 상태를 시연 신호로 하나씩 넘기며 16개 화면이 모두 뜬다. 화면마다 `adb exec-out screencap -p > shots/W-xx.png`로 캡처해 저장소 `docs/shots/`에 넣고 보고한다.
+**완료:** 에뮬레이터에서 상태를 시연 신호로 하나씩 넘기며 시연에 쓰는 화면이 모두 뜨고, 시안과 나란히 놓았을 때 같아 보인다. 화면마다 `adb exec-out screencap -p > shots/W-xx.png`로 캡처해 저장소 `docs/shots/`에 넣고 보고한다.
 
 ## 단계 6. 시나리오 스크립트와 통합 시험 (2시간)
 
@@ -89,7 +90,7 @@
 
 1. 서명 키 생성 안내: 이현준이 터미널에 직접 입력하도록 `keytool -genkeypair -v -keystore ~/wakeon-release.jks -alias wakeon -keyalg RSA -keysize 2048 -validity 10000` 명령을 준다(비밀번호는 Claude에게 말하지 않음). `keystore.properties`(gitignore)에 경로·비밀번호를 쓰게 한다.
 2. `signingConfigs.release`, `minifyEnabled false`(1차는 안정성 우선).
-3. `./gradlew assembleRelease` → `apk/팀명_Wakeon_release.apk`로 복사(팀명은 이현준에게 확인).
+3. `./gradlew assembleRelease` → `apk/wakeoneteam_Wakeon_release.apk`로 복사.
 4. 에뮬레이터에서 기존 앱을 지우고 release APK를 `adb install`해 시나리오를 한 번 더 돌린다.
 
 **완료:** release APK로 시나리오 완주.

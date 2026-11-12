@@ -12,7 +12,7 @@
 ## 2. 실행 방법
 
 1. Android Studio에서 Pleos Connect 에뮬레이터 v2.1.0(API 34)을 실행합니다.
-2. APK 설치: `adb install apk/{팀명}_Wakeon_release.apk`
+2. APK 설치: `adb install apk/wakeoneteam_Wakeon_release.apk`
 3. 앱 목록에서 Wakeon을 실행하고 동의 화면에서 마이크 권한을 허용합니다.
 4. 차량 상태 바꾸기 — 둘 중 하나:
    - 에뮬레이터 Extended Controls의 차량 데이터(Virtual Console)에서 기어·속도를 바꿉니다.
@@ -37,7 +37,7 @@
 
 ## 5. APK 위치
 
-- `apk/{팀명}_Wakeon_release.apk`
+- `apk/wakeoneteam_Wakeon_release.apk`
 
 ## 1차 제출 범위와 한계
 
