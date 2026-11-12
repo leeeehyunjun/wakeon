@@ -16,7 +16,24 @@
 | adb | 1.0.41 (platform-tools 37.0.1) | **PATH에 없음** → `~/.zshrc`에 추가 필요 |
 | AVD | `Pleos_Connect_v2.1.0`, `Medium_Phone_API_37.0` | |
 
-명령줄 빌드(`./gradlew`)를 하려면 `JAVA_HOME`이 JDK 17 이상을 가리켜야 한다. 단계 1에서 정한다.
+### 빌드 설정 (단계 1에서 확정)
+
+| 항목 | 값 | 이유 |
+|---|---|---|
+| JDK | Android Studio 내장 JBR 25 | 이현준 결정: brew로 따로 설치하지 않는다 |
+| Gradle | 9.9.1 (wrapper) | JDK 25에서 돌리려면 Gradle 9.1 이상 필요 |
+| AGP | 9.5.1 | Android Studio 2026.2에 들어 있는 버전(`libagp-version.jar`) |
+| Kotlin | 2.3.21 | AGP 9 내장 Kotlin(2.2.10)보다 올려 JDK 25에서 안정적으로 컴파일 |
+| 소스/바이트코드 | Java 17 (`compileOptions`, `jvmTarget`) | CLAUDE.md 기준 |
+| AndroidX | core 1.13.1, activity-compose 1.9.3, lifecycle 2.8.7, Compose BOM 2024.12.01 | compileSdk 34에서 쓸 수 있는 마지막 버전(더 새 버전은 compileSdk 35 이상 요구) |
+| `android-34` 플랫폼 | 첫 빌드 때 AGP가 자동으로 받음 | |
+
+명령줄 빌드:
+
+```bash
+export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+./gradlew :app:assembleDebug
+```
 
 ---
 
@@ -33,7 +50,19 @@
 | 왼쪽 칸 (주행 화면 `ai.umos.drivingview`) | Task bounds `[0,0]-[853,1300]` → 853×1300 |
 | 오른쪽 칸 (내비 `ai.umos.maps.android.navigation.app`) | Task bounds `[853,90]-[2535,1300]` → **1682×1210** |
 
-- CLAUDE.md의 실측값(세로 841×1210 / 가로 1682×1210)과 가로 창은 같다. 세로 창은 Task bounds가 853×1300으로 나와서, 앱이 실제로 받는 창 크기를 단계 1에서 앱 화면에 띄워 다시 잰다.
+- 왼쪽 853×1300 칸은 시스템 주행 화면 전용이다. 서드파티 앱은 오른쪽 영역에서 2:0(가로) 또는 1:1(세로)로 뜬다.
+
+### 앱이 실제로 받은 창 크기 (단계 1, Wakeon 앱 화면·로그로 실측)
+
+| 배치 | 앱 창 크기 | 화면 위치(px) | 비고 |
+|---|---|---|---|
+| 2:0 가로 (처음 실행) | **1682×1210 dp** | `[853,90]-[2535,1300]` | 앱 하나만 오른쪽 전체 |
+| 1:1 세로 | **841×1210 dp** | `[853,90]-[1694,1300]` (내비는 `[1718,90]-[2559,1300]`) | 창 손잡이(오른쪽 끝 ⋮)를 왼쪽으로 끌면 나뉜다 |
+
+- 로그 예: `window content=841x1210dp config=841x1210dp bounds=841x1210px density=1.0`
+- 창 크기가 바뀔 때 앱이 다시 시작되지 않고 바로 다시 그려진다(`configChanges`로 처리).
+- 공식 규격(840×1184 / 1700×1184)과 조금 다르므로, 화면은 고정 크기가 아니라 받은 창 크기에 맞춰 늘고 줄게 만든다.
+- adb로 1:1 전환: `adb shell input swipe 2547 716 1700 716 600` (2:0 상태에서 오른쪽 끝 손잡이를 왼쪽으로 끌기)
 - 측정 명령: `adb shell wm size`, `adb shell wm density`, `adb shell dumpsys window | grep -E "mBounds|mAppBounds"`, `adb shell dumpsys activity containers`
 
 ### 에뮬레이터에 깔린 Pleos 서비스 (SDK 요구 버전과 비교)
@@ -289,8 +318,16 @@ private val naviEventListener = object : NaviHelperEventListener {
 
 ---
 
-## 7. 단계 1에서 이어서 할 것
+## 7. 설치 직후 권한 상태 (단계 1 확인)
 
-- `android-34` 플랫폼 설치, 명령줄 빌드용 JDK 17 준비
-- 앱 화면에 받은 창 크기(dp)를 띄워 세로·가로 창 실측 → 2장 표 갱신
-- Manifest에 위 권한 넣기. `CAR_SPEED`는 실행 중 허락 요청 필요
+`adb shell dumpsys package com.wakeon.app | grep granted=`
+
+| 권한 | 상태 |
+|---|---|
+| `pleos.car.permission.CAR_DRIVE`, `CAR_LIGHTS`, `NAVI_ROUTE`, `NAVI_ROUTE_SEARCH` | 자동 허용 |
+| `android.car.permission.CAR_POWERTRAIN` | 자동 허용 |
+| `ai.pleos.playground.service.vehicle.VEHICLE_BINDING` (SDK가 추가) | 자동 허용 |
+| `android.car.permission.CAR_SPEED` | **거부 상태** → 앱이 실행 중 허락을 요청해야 함(단계 3) |
+| `android.permission.RECORD_AUDIO` | **거부 상태** → 앱이 실행 중 허락을 요청해야 함(단계 4) |
+
+시연 신호 수신기는 `android.permission.DUMP`를 가진 보낸 쪽만 받는다. adb 셸은 이 권한이 있어 `am broadcast`가 그대로 통한다.
