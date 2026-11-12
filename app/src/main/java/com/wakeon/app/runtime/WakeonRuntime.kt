@@ -28,11 +28,17 @@ import com.wakeon.app.vehicle.Gear
 import com.wakeon.app.vehicle.MergedVehicleSource
 import com.wakeon.app.vehicle.PleosVehicleSource
 import com.wakeon.app.vehicle.TurnSignal
+import com.wakeon.app.voice.AndroidRecognitionEngine
+import com.wakeon.app.voice.AndroidSpeechEngine
+import com.wakeon.app.voice.AssetSoundPlayer
+import com.wakeon.app.voice.AudioCoordinator
+import com.wakeon.app.voice.FallbackListener
+import com.wakeon.app.voice.FallbackSpeaker
 import com.wakeon.app.voice.Line
 import com.wakeon.app.voice.ListenOutcome
 import com.wakeon.app.voice.Listener
-import com.wakeon.app.voice.LogSoundPlayer
-import com.wakeon.app.voice.LogSpeaker
+import com.wakeon.app.voice.PleosRecognitionEngine
+import com.wakeon.app.voice.PleosSpeechEngine
 import com.wakeon.app.voice.SoundPlayer
 import com.wakeon.app.voice.Speaker
 import kotlinx.coroutines.CoroutineScope
@@ -60,9 +66,10 @@ class WakeonRuntime(context: Context) {
     var demoMode = false
         private set
 
+    private val audio = AudioCoordinator(app)
     private val demoVehicle = DemoVehicleSource()
     val realVehicle = PleosVehicleSource(app)
-    private val vehicle = MergedVehicleSource(demoVehicle, realVehicle)
+    private val vehicle = MergedVehicleSource(demoVehicle, realVehicle, audio.navVoice)
     private val answers = DemoAnswers()
     private val wallClock = DemoWallClock(clock)
     private val eventLog = LogcatEventLog { demoMode }
@@ -75,17 +82,29 @@ class WakeonRuntime(context: Context) {
         machine.onArriveSignal()
     }
 
-    // 단계 4에서 진짜 음성·소리로 바꾼다.
-    private val speaker: Speaker = LogSpeaker()
-    private val listener: Listener = DemoFirstListener(answers, fallback = null)
-    private val sounds: SoundPlayer = LogSoundPlayer()
+    // 음성: Pleos(기기 안 엔진) → 안드로이드 기본. 듣기는 시연 대답 큐가 먼저(BUILD 단계 4).
+    private val speaker: Speaker = FallbackSpeaker(
+        listOf(PleosSpeechEngine(app, audio), AndroidSpeechEngine(app, audio)),
+        audio,
+    )
+    private val listener: Listener = DemoFirstListener(
+        answers,
+        fallback = FallbackListener(
+            app,
+            listOf(
+                PleosRecognitionEngine(app, config.talkListenMaxS * SECOND_MS),
+                AndroidRecognitionEngine(app, config.talkListenMaxS * SECOND_MS),
+            ),
+        ),
+    )
+    private val sounds: SoundPlayer = AssetSoundPlayer(app, audio)
     private var lastSpeechEndMs = 0L
 
     private val effects = object : Effects {
         override fun speak(token: Long, lines: List<Line>, louder: Boolean) =
-            speaker.speak(lines, louder) {
+            speaker.speak(lines, louder) { endedAt ->
                 main.post {
-                    lastSpeechEndMs = clock.nowMs()
+                    lastSpeechEndMs = endedAt
                     machine.onSpeechDone(token)
                 }
             }

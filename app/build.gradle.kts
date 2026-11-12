@@ -55,6 +55,8 @@ dependencies {
 
     implementation(libs.pleos.vehicle)
     implementation(libs.pleos.navihelper)
+    implementation(libs.pleos.tts)
+    implementation(libs.pleos.stt)
 
     testImplementation(libs.junit)
 }

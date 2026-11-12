@@ -378,3 +378,39 @@ adb shell pm grant --user current com.wakeon.app android.car.permission.CAR_SPEE
 
 내비 앱이 앞으로 나와 Wakeon 창이 가려지자, 안드로이드가 뒤로 간 앱을 얼려 타이머와 시연 대답 처리가 다음 시연 신호가 올 때까지 멈췄다.
 시연 녹화 중에는 Wakeon 창이 항상 보여야 한다. 창이 없을 때도 동작하게 하려면 포그라운드 서비스가 필요하다(SPEC T6, 1차 범위 밖).
+
+---
+
+## 9. 음성 (단계 4, 2026-11-13)
+
+출처: https://document.pleos.ai/en/docs/pleos-only/connect-sdk-pleos/TextToSpeech/intro , `.../SpeechToText/intro` 와 하위 페이지.
+Maven `ai.pleos.playground:TextToSpeech:3.3.1`, `SpeechToText:3.3.1`(소스 jar 없음 → AAR 클래스를 javap로 확인). 의존성 `ai.pleos.playground.security:universal-access`가 따라오므로 Pleos 저장소는 `ai.pleos.*` 그룹 전체를 허용한다.
+
+| 항목 | 결과 |
+|---|---|
+| 권한 | `pleos.car.permission.TTS_SERVICE`, `STT_SERVICE` (normal, 선언만), 마이크는 `RECORD_AUDIO` (실행 중 허락) |
+| 모드 | `Mode.ON_DEVICE` — 네트워크·앱 등록 불필요. 콘솔 표시는 "준비 중"이지만 에뮬레이터 음성 서비스(`ai.pleos.playground.caas` 4.2.10, SDK 요구 4.1.29 이상)에서 동작 |
+| Pleos TTS | 한국어(`Locale.KOREA`) 재생 확인. 오디오 속성 `USAGE_ASSISTANT`로 재생됨. **첫 문장은 엔진이 깨어나느라 약 6초 더 걸린다**(이후 1~4초) |
+| 멈춤 | 브레이크 신호 → 앱 멈춤 명령 1ms → 서비스 onStop 7ms → 재생 정지 0.21초 (기준 0.25초) |
+| Pleos STT | 마이크를 열고(16kHz) 말소리가 없으면 5초 뒤 무응답으로 닫힘. 첫 듣기는 녹음 시작까지 약 2초, 이후 0.35초 |
+| 안드로이드 TTS | 이 에뮬레이터에서는 초기화 실패(status -1). Pleos TTS가 되므로 대체 경로로만 둔다 |
+| 경고음·알람 | `assets/sounds/warn_1~3.wav`, `alarm_1~3.wav` (`tools/make_sounds.py`로 생성, 단계마다 소리 자체가 커짐). `USAGE_ALARM`으로 재생 |
+| 내비 안내 감지 | 다른 앱의 `USAGE_ASSISTANCE_NAVIGATION_GUIDANCE` 재생 또는 오디오 포커스 상실 → 고부하(내비 안내). 에뮬레이터에서 내비 안내 음성을 낼 방법이 없어 실제 감지는 아직 확인 못 함 |
+
+```kotlin
+val tts = ai.pleos.playground.tts.TextToSpeech(context, Mode.ON_DEVICE)
+tts.initialize(object : OnInitializeListener { override fun onSuccess() { tts.addEventListener(listener); tts.setLocale(Locale.KOREA) } ... })
+tts.speak("문장", true)        // 이벤트: onStart → onDone / onStop / onError(ErrorType)
+tts.stop()
+
+val stt = ai.pleos.playground.stt.SpeechToText(context, Mode.ON_DEVICE)
+stt.initialize(...); stt.addListener(resultListener); stt.setLocale(Locale.KOREA)
+stt.request()                 // onStartedRecognition, onUpdatedEpdData(on, off: 바이트 위치), onUpdated(text, completed), onEndedRecognition, onError
+stt.stop()
+```
+
+응답 시간 = 첫 발화 시작 − 질문 음성 끝(`SystemClock.elapsedRealtime`). Pleos STT는 EPD 시작 위치(16kHz·16bit·모노 → 1ms = 32바이트)로 첫 발화 시각을 계산하고, 없으면 첫 인식 글자가 온 시각을 쓴다.
+마이크 권한이 없거나 인식 엔진이 없으면 "말소리 없음"과 같게 처리한다(듣기 창만큼 기다린 뒤 무응답). 말소리는 있었는데 글자가 안 나온 경우만 인식 실패다(SPEC T10).
+
+에뮬레이터에서 마이크로 직접 말해 보려면: 에뮬레이터 옆 도구 막대 ⋯ → Microphone → "Virtual microphone uses host audio input" 켜기, 그리고
+`adb shell pm grant --user current com.wakeon.app android.permission.RECORD_AUDIO` (단계 5의 동의 화면이 생기면 앱이 직접 허락을 요청한다).
