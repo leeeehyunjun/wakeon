@@ -260,7 +260,7 @@
 
 ---
 
-## 단계 7 · release APK — 2026-11-13 · 커밋 "[단계 7]" (번호는 다음 기록 때 채움)
+## 단계 7 · release APK — 2026-11-13 · 커밋 `a243cf0`
 
 **한 일**
 - 서명 설정(`keystore.properties`에서 읽음, 저장소에 안 올림)과 `tools/release.sh`(빌드 → apksigner 서명 확인 → `apk/wakeoneteam_Wakeon_release.apk`). 서명 키는 이현준이 직접 만듦.
@@ -275,3 +275,20 @@
 **막힌 것 / 사람이 할 일**
 - 1회차 TTS 시간 초과의 원인(Pleos 쪽 끝 알림 누락)은 기기 로그가 지워져 확인 못 함. 다시 나와도 다음 문장부터 말한다.
 - 서명 키 `~/wakeon-release.jks`와 비밀번호는 이현준이 따로 보관(잃어버리면 같은 서명으로 업데이트 불가).
+
+---
+
+## 단계 8 · README와 제출 준비 — 2026-11-13 · 커밋 "[단계 8]" (번호는 이현준에게 보고한 최종 해시)
+
+**한 일**
+- `README.md`를 공고 필수 5항목(앱 이름과 한 줄 소개 / 실행 방법 / 테스트 환경과 설정 / 에뮬레이터 버전과 화면 규격 / APK 위치)으로 다시 씀. 실제 측정값(Pleos Connect v2.1.0, 창 1682×1210 · 841×1210 dp, macOS 26.5.1, Android Studio 2026.2, Emulator 37.2.13.0)으로 채움.
+- 기능은 시연 영상 장면 1~22에 나온 것만 적고, 알려진 한계(대답은 시연 신호, 내비 지도 미연결, 벨트 경고)와 2차 계획을 나눠 적음.
+
+**확인 결과**
+- README의 실행 방법대로: 새로 설치 → 동의 → 권한 2개 → W-02, Virtual Console에서 D · 60km/h → W-04(시연 신호 없이) 확인.
+- 비밀값 검사 `git log -p | grep -i -E "password|storePassword|keyPassword"`: 값 없음(설정 이름과 BUILD.md 안내 문장만). `keystore.properties`·`*.jks`는 .gitignore로 막혀 있음.
+
+**막힌 것 / 사람이 할 일**
+- 이현준: 11/16(월) 저장소 공개 전환(Settings → General → Danger Zone → Change visibility), 접수 메일에 저장소 주소와 최종 커밋 해시.
+- 내비 지도가 보이는 영상으로 다시 녹화하려면 다른 네트워크에서 에뮬레이터를 켜 보기(TODO_2차).
+
