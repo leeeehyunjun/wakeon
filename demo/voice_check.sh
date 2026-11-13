@@ -2,6 +2,7 @@
 # 소리 확인용. 에뮬레이터를 켜고(bash demo/start_emulator.sh) Wakeon 창이 보이는 상태에서 실행한다.
 #   bash demo/voice_check.sh            # 맥 스피커로 듣기
 #   bash demo/voice_check.sh --record   # 에뮬레이터 자체 녹화로 recordings/voice_check_<시각>.webm·.wav도 남김
+#     녹화할 때는 에뮬레이터를 녹화 모드로 켠다: bash demo/start_emulator.sh --record (맥 스피커로는 소리가 안 나옴)
 # 1) 출발 전 체크: 질문 4개와 "강아지 좋죠."(짧은 호응), "준비됐어요…"
 # 2) 대화: 점심 줄기 → 강아지 줄기("키우세요?" → "이름이 뭐예요?" → "보리, 이름 예쁘네요…")
 #    → 대답이 늦어져 "혹시 졸리세요?" → "아니, 괜찮아." → "알겠어요. 그럼 보리 얘기 하나만 더요…"

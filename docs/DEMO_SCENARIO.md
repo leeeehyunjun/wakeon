@@ -108,8 +108,9 @@ adb shell am broadcast -a com.wakeon.app.DEMO -p com.wakeon.app --es answer "'�
 
 녹화는 **에뮬레이터 자체 화면 녹화**(`adb emu screenrecord`, `demo/record.sh`)로 화면과 기기 안 소리를 함께 담는다(2026-11-13 결정, `docs/DECISIONS.md`).
 - scrcpy는 이 차량용 에뮬레이터의 소리를 녹음하지 못한다(소리가 차량용 출력 버스로만 나가 무음으로 녹음됨).
-- 맥 스피커로 들을 때 소리가 깨지는 것은 에뮬레이터 → 맥 재생 단계의 문제이고, 자체 녹화본에는 깨짐이 없다. 에뮬레이터는 `bash demo/start_emulator.sh`(CoreAudio 버퍼 확대)로 켠다.
-- `bash demo/record.sh stop`이 영상(mp4)과 소리(wav)를 만든다. 말 사이는 노이즈 게이트로 0, 음량은 일정하게 +20dB(동적 정규화 loudnorm은 말 사이 미세 잡음을 키워 쓰지 않음).
+- **녹화할 때는 에뮬레이터를 `bash demo/start_emulator.sh --record`로 켠다.** 소리를 맥 스피커 대신 파일로 내보내는 모드다(녹화 중 맥 스피커로는 소리가 안 나옴). 맥 스피커로 재생하면서 녹화하면 녹화본의 목소리에도 갈라짐이 남는다(2026-11-13 확인, PLEOS_NOTES 12장). 연습·확인할 때는 `bash demo/start_emulator.sh`(맥 스피커).
+- `start_emulator.sh`는 차량 음량(음성·알람 그룹)을 40/45로 맞춘다. 녹화 원본이 바로 적당한 크기(최고 약 −6.6dBFS)라 따로 키우지 않는다.
+- `bash demo/record.sh stop`이 영상(mp4, 소리 AAC 320k)과 소리(wav)를 만든다. 소리 가공은 말 사이를 0으로 만드는 노이즈 게이트 하나뿐이다(게인·리미터·loudnorm 없음). 소리가 작으면 녹화 모드가 아니었다고 알려 준다.
 - 에뮬레이터는 맥 마이크 입력을 끈 채로 켠다(`demo/start_emulator.sh`가 `avd hostmicoff`).
 - 녹화 뒤 `python3 -I tools/click_check.py 소리.wav`로 검사한다. 기준: 1초마다 순간 잡음 ≤ 0.5%, 말 사이 무음 RMS ≤ 2.
 - 녹화 전에 한 번 말을 시켜 TTS 엔진을 깨운다(첫 문장만 몇 초 늦음).
