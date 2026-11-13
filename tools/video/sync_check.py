@@ -83,6 +83,26 @@ def band_changes(video):
     return changes
 
 
+APP = (675, 112, 562, 825)      # 1920×1080에서 앱 안쪽(원본 900,150,750,1100 × 0.75), 화면 전환 찾기용
+
+
+def app_changes(video, t, before=0.6, after=0.6, thr=4.0):
+    """t 근처에서 앱 화면이 크게 바뀐 프레임(차이가 가장 큰 프레임)의 시각."""
+    x, y, w, h = APP
+    a = max(0.0, t - before)
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{a:.3f}", "-t", f"{before + after:.3f}", "-i", video, "-an", "-vf",
+                          f"fps={FPS},crop={w}:{h}:{x}:{y},scale=75:110:flags=area,format=gray", "-f", "rawvideo", "-"],
+                         check=True, capture_output=True).stdout
+    n = 75 * 110
+    frames = [raw[i:i + n] for i in range(0, len(raw) - n + 1, n)]
+    best = None
+    for k in range(1, len(frames)):
+        d = sum(abs(p - q) for p, q in zip(frames[k - 1], frames[k])) / n
+        if d > thr and (best is None or d > best[1]):
+            best = (a + k / FPS, d)
+    return best[0] if best else None
+
+
 def nearest(changes, t, tol=0.25):
     best = None
     for c in changes:
@@ -154,6 +174,28 @@ def main():
                     if diff is not None else
                     f"| {k} | {it['kind']} | {text} | {mmss(shown) if shown is not None else '못 찾음'} | "
                     f"{mmss(ref) if ref is not None else '못 찾음'} ({ref_name}) | — | ✗ | — | — | — |\n")
+    # 화면 전환 ↔ 소리: 화면이 바뀌며 앱이 말을 시작하는 곳에서, 완성본의 (소리 시작 − 화면 바뀜)을 앱 로그의 (재생 시작 − 화면 전환)과 비교
+    avp = os.path.join(os.path.dirname(subs), "av_events.json")
+    if os.path.exists(avp):
+        av = json.load(open(avp, encoding="utf-8"))
+        res = []
+        for e in av["events"]:
+            fr = app_changes(video, e["frame"])
+            snd = onset_near(act, fr + e["log_gap"], before=0.5, after=0.5) if fr is not None else None
+            res.append((e, fr, snd, (snd - fr - e["log_gap"]) if fr is not None and snd is not None else None))
+        vals = sorted(x for *_, x in res if x is not None)
+        with open(out, "a", encoding="utf-8") as f:
+            f.write(f"\n## 화면 전환 ↔ 소리\n\n편집에서 소리를 {av['shift']:.3f}초 당김(녹화본 측정: 화면이 소리보다 {av['lead']:.3f}초 앞섬).\n\n")
+            f.write("- 화면 바뀜: 완성본에서 앱 화면이 크게 바뀐 프레임 · 소리 시작: 완성본 소리에서 그 대사가 시작된 곳\n")
+            f.write("- 로그 간격: 앱 로그의 (재생 시작 − 화면 전환). 차이 = (소리 시작 − 화면 바뀜) − 로그 간격. 0이면 화면과 소리가 앱 안에서처럼 맞음\n")
+            if vals:
+                f.write(f"- {len(vals)}곳 · 차이 중앙값 {vals[len(vals) // 2]:+.3f}초 · 범위 {vals[0]:+.3f} ~ {vals[-1]:+.3f}초\n\n")
+            f.write("| # | 화면 | 대사 | 화면 바뀜 | 소리 시작 | 실제 간격 | 로그 간격 | 차이 |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n")
+            for k, (e, fr, snd, x) in enumerate(res, 1):
+                f.write(f"| {k} | {e['screen']} | {e['vid']} | {mmss(fr) if fr is not None else '—'} | {mmss(snd) if snd is not None else '—'} | "
+                        f"{f'{snd - fr:+.3f}' if x is not None else '—'} | {e['log_gap']:+.3f} | {f'{x:+.3f}' if x is not None else '—'} |\n")
+        if vals:
+            print(f"화면 전환 ↔ 소리 {len(vals)}곳: 차이 중앙값 {vals[len(vals) // 2]:+.3f}초, 범위 {vals[0]:+.3f} ~ {vals[-1]:+.3f}")
     print(f"자막 {len(rows)}개 · 통과 {len(rows) - bad} · 넘음 {bad} → {out}")
     for it, shown, ref, _, diff, ok, _, _ in rows:
         if not ok:

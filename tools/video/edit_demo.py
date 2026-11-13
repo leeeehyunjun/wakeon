@@ -254,6 +254,24 @@ def video_lead(log, video, d):
     return vals[len(vals) // 2], pairs
 
 
+def first_change(video, a, b, rect=APP_INNER):
+    """[a, b)에서 앱 화면이 가장 크게 바뀐 프레임(바뀐 뒤 첫 프레임)의 원본 시각. 녹화본은 빠진 프레임이 있는
+    가변 프레임이라 프레임을 다시 뽑지 않고(passthrough) 원본 시각(pts) 그대로 본다."""
+    x, y, w, h = rect
+    r = subprocess.run(["ffmpeg", "-v", "info", "-copyts", "-ss", f"{max(0, a):.3f}", "-t", f"{b - max(0, a):.3f}", "-i", video, "-an",
+                        "-vf", f"crop={w}:{h}:{x}:{y},scale=75:110:flags=area,format=gray,showinfo", "-fps_mode", "passthrough",
+                        "-f", "rawvideo", "-"], check=True, capture_output=True)
+    pts = [float(t) for t in re.findall(r"pts_time:\s*([0-9.]+)", r.stderr.decode(errors="replace"))]
+    n = 75 * 110
+    frames = [r.stdout[i:i + n] for i in range(0, len(r.stdout) - n + 1, n)]
+    best = None
+    for k in range(1, min(len(pts), len(frames))):
+        d = sum(abs(p - q) for p, q in zip(frames[k - 1], frames[k])) / n
+        if d > 4.0 and (best is None or d > best[1]):
+            best = (pts[k], d)
+    return best[0] if best else None
+
+
 def static_run(video, a, b):
     """[a, b)에서 앱 화면이 가장 오래 멈춰 있는 구간(영상 시각). 프레임 사이 평균 차이가 STATIC_DIFF 이하."""
     if b - a < 0.5:
@@ -279,17 +297,22 @@ def static_run(video, a, b):
 
 # ─────────────────────────────── 장면표
 class Plan:
-    def __init__(self, log, audio, d, video=None, lead=0.0):
-        self.log, self.audio, self.d, self.video, self.lead = log, audio, d, video, lead
+    def __init__(self, log, audio, d, video=None, lead=0.0, shift=0.0):
+        self.log, self.audio, self.d, self.video, self.lead, self.shift = log, audio, d, video, lead, shift
         self.scene22 = None
+        self.pre = {}         # 구간 시작(원본, 프레임에 맞춘 값) → 소리 먼저 시작(초)
         self.scenes = []      # (번호, 화면, 제목, [(a,b) 영상 시각])
         self.captions = []    # (영상 시각, 글, 출력 길이)
-        self.extra = []       # 시연 신호로 넣지 않은 운전자 말(자막만): (영상 시각, 글)
+        self.extra = []       # 시연 신호로 넣지 않은 운전자 말(자막만): (영상 시각, 글, 기준 설명) — 시각은 소리 기준
         self.notes = {}       # 대답 시각 → 옆에 붙일 편집 자막
 
-    def v(self, t):
-        """기기 시각 → 영상 시각(소리 기준: 앱 말소리가 녹화 소리와 맞는 시각)."""
+    def va(self, t):
+        """기기 시각 → 녹화 소리 시각(앱 말소리가 녹화 소리에서 나는 시각)."""
         return t - self.d
+
+    def v(self, t):
+        """기기 시각 → 영상 시각(소리 기준). 소리를 shift초 당겨 붙이므로 녹화 소리 시각 − shift."""
+        return t - self.d - self.shift
 
     def vv(self, t):
         """기기 시각 → 영상 시각(화면 기준). 녹화본은 화면이 소리보다 lead초 앞선다(에뮬레이터 소리 출력 지연).
@@ -301,27 +324,31 @@ class Plan:
         재생 시작 로그(tts_play = 첫 음량 알림) + 녹화 시작 오프셋으로 문장 위치를 잡고, 그 ±0.15초 안에서 실제 소리가
         시작된 곳(10ms 단위)으로 다듬는다. 로그만 쓰면 문장마다 ±0.1초 흔들린다(2026-11-13 녹화 실측). 로그가 없으면 소리에서 찾는다."""
         if c.get("play") is not None:
-            t = self.v(c["play"])
+            t = self.va(c["play"])
             o = self.audio.onset_near(t, before=0.15, after=0.15)
-            return o if o is not None else t
-        a = self.v(c["t"])
-        return self.audio.onset(a, a + 4) or a
+            return (o if o is not None else t) - self.shift
+        a = self.va(c["t"])
+        return (self.audio.onset(a, a + 4) or a) - self.shift
 
     def off(self, c):
         """말 c의 실제 소리 끝(영상 시각). 다음 말이 시작되기 전까지만 본다."""
-        a, b = self.on(c), self.v(c["end"])
-        nxt = [self.on(x) for x in self.log.calls if x["t"] > c["t"]]
+        a, b = self.on(c) + self.shift, self.va(c["end"])
+        nxt = [self.on(x) + self.shift for x in self.log.calls if x["t"] > c["t"]]
         limit = min([b + 0.3] + nxt)
-        return self.audio.offset(a, limit) or b
+        return (self.audio.offset(a, limit) or b) - self.shift
 
     def snd(self, t, length):
         """소리 파일 재생(기기 시각 t) → (소리 시작, 끝) 영상 시각."""
-        a = self.v(t)
-        o = self.audio.onset(a, a + 2) or a
+        a = self.va(t)
+        o = (self.audio.onset(a, a + 2) or a) - self.shift
         return o, o + length
 
     def scene(self, no, screen, title, *segs):
-        self.scenes.append((no, screen, title, [(a, b) for a, b in segs]))
+        """segs: (a, b) 또는 (a, b, pre). pre = 그 구간의 소리를 화면보다 몇 초 먼저 시작할지(첫소리가 컷에 걸릴 때만)."""
+        self.scenes.append((no, screen, title, [(x[0], x[1]) for x in segs]))
+        for x in segs:
+            if len(x) > 2 and x[2] > 0:
+                self.pre[round(snap(x[0]), 4)] = x[2]
 
 
 def scenes(p):
@@ -419,9 +446,16 @@ def scenes(p):
     v52 = L.call("V-52", qr2["t"])
     rr = L.find(r"recheck_result", qr2["t"])
     thanks = p.off(v52) + 0.25
-    p.extra.append((thanks, "고마워.", "편집 지정(V-52 소리 끝 + 0.25초)"))
-    s21 = (max(p.on(v52) - 0.4, v(rr) + 0.05), thanks + 1.7)
-    p.scene(21, "W-16", "출발 · 다음 쉼터", s21)
+    p.extra.append((thanks, "고마워.", "편집 지정(V-52 소리 끝 + 0.25초)"))   # 소리 기준 시각
+    # 결과 화면(W-15, 3/3 대답)이 비치지 않게 W-16 첫 프레임에서 시작한다. 소리를 당기면 V-52 첫소리가 화면 전환과 거의 같이 와서,
+    # 첫소리가 컷에 걸리면 이 구간만 소리를 그만큼(수십 ms) 먼저 시작한다.
+    on52 = p.on(v52)
+    fw = first_change(p.video, v(rr) - 0.4, v(rr) + 0.4)
+    start21 = fw + 0.001 if fw is not None else max(on52 - 0.4, v(rr) + 0.05)
+    pre21 = max(0.0, snap(start21) - (on52 - 0.015))
+    s21 = (start21, thanks + 1.7)
+    p.scene(21, "W-16", "출발 · 다음 쉼터", (s21[0], s21[1], pre21))
+    p.pre21 = pre21
     # 22 · W-04 다시 대기(1:1 창) · 연속 0분: 앱 화면이 2초 넘게 멈춰 있는(창 전환·화면 바뀜 없는) 구간만 쓴다. 없으면 뺀다.
     s04b = L.find(r"screen W-04", v52["end"])
     run = static_run(p.video, v(s04b), min(v(s04b) + 6.0, p.audio.duration - 0.2))
@@ -482,28 +516,35 @@ def seg_end(segs, t):
     return None
 
 
+def sound_segs(p, segs):
+    """구간마다 실제로 들어가는 소리 범위(소리 기준 영상 시각). 소리를 먼저 시작하는 구간(pre)은 그만큼 앞."""
+    return [(a - p.pre.get(round(a, 4), 0.0), b - p.pre.get(round(a, 4), 0.0), o, n) for a, b, o, n in segs]
+
+
 def subtitle_items(p, segs):
     """차: 재생 시작(로그+오프셋) ~ 소리 끝+0.2초. 나: 대답 시각부터. 차·나 자막은 컷을 넘지 않는다.
-    시각은 프레임(1/30초)에 맞춘다. ref = 검사 기준 시각(나: 로그의 대답 시각을 출력 시각으로 옮긴 값)."""
+    시각은 프레임(1/30초)에 맞춘다. ref = 검사 기준 시각(나: 로그의 대답 시각을 출력 시각으로 옮긴 값).
+    소리 기준 시각(앱 대사, 편집 지정 대답)은 구간의 소리 범위(sound_segs)로, 화면 기준 시각(대답·편집 자막)은 구간으로 옮긴다."""
     items, warn = [], []
+    ssegs = sound_segs(p, segs)
     for c in p.log.calls:
         on, off = p.on(c), p.off(c)
-        if not any(sa <= on <= sb for sa, sb, _, _ in segs):
-            if any(sa < off and on < sb for sa, sb, _, _ in segs):
+        if not any(sa <= on <= sb for sa, sb, _, _ in ssegs):
+            if any(sa < off and on < sb for sa, sb, _, _ in ssegs):
                 warn.append(f"문장 앞이 잘림(자막 없음): {c['vids']} {hms(on)}~{hms(off)}")
             continue
-        if not inside(segs, on - 0.05, off + 0.02):
+        if not inside(ssegs, on - 0.015, off + 0.02):   # 구간 경계 페이드 12ms 안에 첫소리가 들어가면 잘린 것
             warn.append(f"문장이 잘림: {c['vids']} {hms(on)}~{hms(off)}")
-        a = to_out(segs, on)
-        items.append({"kind": "차", "text": " ".join(c["texts"]), "a": a, "b": min(to_out(segs, off) + HOLD_CAR, seg_end(segs, on)),
-                      "src": "log" if c.get("play") is not None else "audio", "end_hint": to_out(segs, off)})
-    answers = [(p.vv(ans["t"]), ans["text"], p.notes.get(round(ans["t"], 3)), "대답 시각(로그, 화면 기준)") for ans in p.log.answers]
-    answers += [(t, text, None, ref_name) for t, text, ref_name in p.extra]
-    for t, text, note, ref_name in answers:
-        if not any(sa + 0.2 <= t <= sb for sa, sb, _, _ in segs):
+        a = to_out(ssegs, on)
+        items.append({"kind": "차", "text": " ".join(c["texts"]), "a": a, "b": min(to_out(ssegs, off) + HOLD_CAR, seg_end(ssegs, on)),
+                      "src": "log" if c.get("play") is not None else "audio", "end_hint": to_out(ssegs, off)})
+    answers = [(p.vv(ans["t"]), ans["text"], p.notes.get(round(ans["t"], 3)), "대답 시각(로그, 화면 기준)", segs) for ans in p.log.answers]
+    answers += [(t, text, None, ref_name, ssegs) for t, text, ref_name in p.extra]
+    for t, text, note, ref_name, sg in answers:
+        if not any(sa + 0.2 <= t <= sb for sa, sb, _, _ in sg):
             continue
-        a = to_out(segs, t)
-        b = min(a + (DUR_ANSWER_NOTE if note else DUR_ANSWER), seg_end(segs, t))
+        a = to_out(sg, t)
+        b = min(a + (DUR_ANSWER_NOTE if note else DUR_ANSWER), seg_end(sg, t))
         if b - a < MIN_VISIBLE - 1e-6:
             warn.append(f"대답 자막이 다음 컷 전에 {b - a:.1f}초만 보임: {text}")
         items.append({"kind": "나", "text": text, "note": note, "a": a, "b": b, "ref": a, "ref_name": ref_name})
@@ -549,6 +590,8 @@ def main():
     ap.add_argument("--plan", action="store_true")
     ap.add_argument("--out", default=os.path.join(ROOT, "recordings/final/wakeoneteam_Wakeon_demo.mp4"))
     ap.add_argument("--nav-cover", choices=["auto", "on", "off"], default="auto")
+    ap.add_argument("--av-shift", default="auto",
+                    help="소리를 몇 초 당겨 화면과 맞출지. auto = 화면 전환으로 잰 값(2026-11-13 PM 승인), 0 = 녹화 그대로")
     args = ap.parse_args()
 
     video = os.path.abspath(args.video)
@@ -559,10 +602,11 @@ def main():
         args.log = os.path.join(ROOT, "recordings", logs[-1])
     log = Log(args.log)
     audio = Audio(wav)
-    d0, shift = sync(log, audio, os.path.basename(video))
+    d0, name_shift = sync(log, audio, os.path.basename(video))
     d, resid = calibrate(log, audio, d0)
     lead, lead_pairs = video_lead(log, video, d)
-    p = Plan(log, audio, d, video, lead)
+    shift = lead if args.av_shift == "auto" else float(args.av_shift)
+    p = Plan(log, audio, d, video, lead, shift)
     scenes(p)
     segs, body = build_timeline(p)
     items, warn = subtitle_items(p, segs)
@@ -579,7 +623,7 @@ def main():
     states, dropped = overlay_track(items, body, nav_cover)
 
     total = TITLE_S + body + END_S
-    print(f"앱 로그: {os.path.relpath(args.log, ROOT)}  · 시각 맞춤: 파일 이름 기준 {shift:+.2f}초, 재생 시작 로그로 {d - d0:+.3f}초 더")
+    print(f"앱 로그: {os.path.relpath(args.log, ROOT)}  · 시각 맞춤: 파일 이름 기준 {name_shift:+.2f}초, 재생 시작 로그로 {d - d0:+.3f}초 더")
     if resid:
         big = [(v, r) for v, r in resid if abs(r) > 0.05]
         print(f"  재생 시작 로그 − 실제 소리 시작(원본): {len(resid)}문장, 최대 {max(abs(r) for _, r in resid):.3f}초"
@@ -589,6 +633,9 @@ def main():
     if lead_pairs:
         ls = sorted(x for _, x in lead_pairs)
         print(f"  화면이 소리보다 앞섬: 중앙값 {lead:.3f}초 (화면 전환 {len(ls)}곳, {ls[0]:.3f}~{ls[-1]:.3f})")
+    print(f"  소리 당기기: {shift:.3f}초" + (" (녹화 그대로)" if shift == 0 else " → 화면과 맞춤"))
+    for a0, pre in sorted(p.pre.items()):
+        print(f"  ※ 원본 {hms(a0)}에서 시작하는 구간은 첫소리가 컷에 걸리지 않게 소리를 {pre:.3f}초 먼저 시작")
     print(f"내비: {'지도 연결됨(route_started)' if nav_ok else '연결 안 됨'} → 내비 가림 {'켬' if cover_on else '끔'}")
     print(f"본편 {body:.1f}초 + 타이틀 {TITLE_S:.0f} + 엔드 {END_S:.0f} = {total:.1f}초 ({hms(total)}) · 구간 {len(segs)}개")
     rows = []
@@ -616,6 +663,21 @@ def main():
                                   **({"ref": i["ref"] + TITLE_S} if "ref" in i else {}),
                                   **({"end_hint": i["end_hint"] + TITLE_S} if "end_hint" in i else {})) for i in items]},
                   f, ensure_ascii=False, indent=1)
+    # 화면 전환 ↔ 소리 검사용(sync_check.py): 화면이 바뀌면서 앱이 말을 시작하는 곳. 컷과 헷갈리지 않게 구간 안쪽만.
+    av = []
+    for t, msg in log.ev:
+        m = re.match(r"screen (W-\S+)", msg)
+        if not m:
+            continue
+        c = next((c for c in log.calls if c.get("play") is not None and abs(c["t"] - t) <= 0.5), None)
+        if c is None:
+            continue
+        f, snd = p.vv(t), p.on(c)
+        if not any(sa + 0.3 <= f and snd <= sb - 0.3 for sa, sb, _, _ in segs):
+            continue
+        av.append({"screen": m[1], "vid": ",".join(c["vids"]), "frame": to_out(segs, f) + TITLE_S, "log_gap": c["play"] - t})
+    with open(os.path.join(work, "av_events.json"), "w", encoding="utf-8") as f:
+        json.dump({"shift": shift, "lead": lead, "events": av}, f, ensure_ascii=False, indent=1)
     if args.plan:
         for i in items:
             print(f"    {hms(i['a'] + TITLE_S)}~{hms(i['b'] + TITLE_S)} {i['kind']} {i['text']}" + (f"  [{i['note']}]" if i.get("note") else ""))
@@ -652,6 +714,7 @@ def main():
         f.write("ffconcat version 1.0\n")
         for k, (a, b, _, _) in enumerate(segs):
             dur = b - a
+            pre = p.pre.get(round(a, 4), 0.0)
             seg = os.path.join(work, f"seg_{k:03d}.mkv")
             fc = (f"[0:v]setpts=PTS-STARTPTS,fps={FPS},scale=1920:1080:flags=lanczos,setsar=1,"
                   f"trim=duration={dur:.4f},setpts=PTS-STARTPTS,format=yuv420p[v];"
@@ -659,7 +722,7 @@ def main():
                   f"apad=whole_dur={dur:.4f},atrim=duration={dur:.4f},afade=t=in:d=0.012,"
                   f"afade=t=out:st={max(0, dur - 0.012):.4f}:d=0.012[a]")
             subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{a:.4f}", "-to", f"{b + 0.2:.4f}", "-i", video,
-                            "-ss", f"{a:.4f}", "-to", f"{b:.4f}", "-i", wav, "-filter_complex", fc, "-map", "[v]", "-map", "[a]",
+                            "-ss", f"{a + shift - pre:.4f}", "-to", f"{b + shift - pre:.4f}", "-i", wav, "-filter_complex", fc, "-map", "[v]", "-map", "[a]",
                             "-c:v", "libx264", "-preset", "veryfast", "-crf", "10", "-r", str(FPS),
                             "-c:a", "pcm_s16le", seg], check=True)
             f.write(f"file 'seg_{k:03d}.mkv'\n")
