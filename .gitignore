@@ -24,3 +24,7 @@ __pycache__/
 
 # 개인 작업 파일 (저장소에 넣지 않음)
 Claude outputs/
+
+# 다른 AI 코딩 도구(Codex) 설정 — 제출용 저장소에 필요 없음
+.codex/
+AGENTS.md
