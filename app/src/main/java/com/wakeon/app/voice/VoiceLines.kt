@@ -25,10 +25,10 @@ object VoiceLines {
     val V14 = Line("V-14", "제 말 들리세요?")
     val V15 = Line("V-15", "혹시 졸리세요? '응' 또는 '아니'로 말해 주세요.")
     val V16 = Line("V-16", "'응'이나 '아니'로만 대답해 주세요.")
-    /** 의심 확인에 '아니' → 받고 바로 다음 질문 하나(5-5). 줄기를 이어 갈 때는 [V17_MORE]를 붙인다. */
-    val V17 = Line("V-17", "알겠어요.")
-    const val V17_MORE = "그럼 {이름} 얘기 하나만 더요."
-    const val V17_MORE_GENERIC = "그럼 하나만 더 여쭤볼게요."
+    /** 의심 확인에 '아니' → "알겠어요."로 받고 바로 다음 질문 하나(5-5). 줄기를 이어 갈 때는 [V12_MORE]를 붙인다. */
+    val V11_OK = Line("V-11", "알겠어요.")
+    const val V12_MORE = "그럼 {이름} 얘기 하나만 더요."
+    const val V12_MORE_GENERIC = "그럼 하나만 더 여쭤볼게요."
     val V20 = Line("V-20", "졸음 신호가 보여요. 가까운 쉼터로 안내할게요.")
     const val V21 = "{거리}km 앞 {쉼터}를 경유지로 넣을까요?"
     const val V22 = "30km 안에 졸음쉼터가 없어요. {거리}km 앞 {휴게소}를 넣을까요?"
@@ -74,7 +74,7 @@ object VoiceLines {
     /** 금지 표현·길이 검사용: 모든 대사를 예시 값으로 채운 목록. */
     fun allForCheck(): List<Line> = listOf(
         V01, V02, V03, V05, V06, V07, V10, *V11_EXAMPLES.toTypedArray(), V12, V13, V14, V15, V16,
-        V17, Line("V-17", fill(V17_MORE, "이름" to "보리")), Line("V-17", V17_MORE_GENERIC), V20,
+        V11_OK, Line("V-12", fill(V12_MORE, "이름" to "보리")), Line("V-12", V12_MORE_GENERIC), V20,
         v21("12", "가나졸음쉼터"), v22("27", "다라휴게소"), V22B, v23("12", "가나졸음쉼터"),
         v24("가나졸음쉼터", 8), V24B, v25("1", "가나졸음쉼터", "오른쪽"), v26("38"), V27, V28,
         v29("12", "오른쪽"), V30_A, V30_B, V31, V32, v33(15), V34_RECLINE, V34_UPRIGHT, V35, V36,

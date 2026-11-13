@@ -725,15 +725,15 @@ class WakeonStateMachine(
                             go(S04, "confirm_no")
                             if (questionNo >= config.talkRoundMax) {
                                 pendingStep = null
-                                say(VoiceLines.V17) { endRound("round_done") }
+                                say(VoiceLines.V11_OK) { endRound("round_done") }
                             } else {
                                 val more = if (pendingStep?.question != null) {
-                                    planner.subject?.let { VoiceLines.fill(VoiceLines.V17_MORE, "이름" to it) }
-                                        ?: VoiceLines.V17_MORE_GENERIC
+                                    planner.subject?.let { VoiceLines.fill(VoiceLines.V12_MORE, "이름" to it) }
+                                        ?: VoiceLines.V12_MORE_GENERIC
                                 } else {
                                     null
                                 }
-                                askNextTalk(prefix = listOfNotNull(VoiceLines.V17.text, more).joinToString(" "))
+                                askNextTalk(prefix = listOfNotNull(VoiceLines.V11_OK.text, more).joinToString(" "))
                             }
                         }
                     }
