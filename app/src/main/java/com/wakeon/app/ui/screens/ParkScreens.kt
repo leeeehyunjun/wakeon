@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.wakeon.app.R
 import com.wakeon.app.config.WakeonConfig
+import com.wakeon.app.config.WakeonConfig.Companion.MINUTE_MS
 import com.wakeon.app.core.TriggerId
 import com.wakeon.app.core.VoicePhase
 import com.wakeon.app.core.WakeonSnapshot
@@ -342,7 +343,7 @@ fun W12Arrived(s: WakeonSnapshot, actions: WakeonActions) {
             start(Modifier.at(57f, 712f).width(726.dp))
             routine(Modifier.at(57f, 960f).width(726.dp))
             InfoBlock(R.drawable.wk_ic_coffee, ScreenStrings.COFFEE_TITLE, ScreenStrings.COFFEE_BODY, Modifier.at(925f, 299f).width(665.dp))
-            InfoBlock(null, ScreenStrings.POINT_TITLE, ScreenStrings.POINT_BODY, Modifier.at(925f, 712f).width(665.dp))
+            InfoBlock(null, ScreenStrings.POINT_TITLE, ScreenStrings.POINT_BODY, Modifier.at(925f, 712f).width(665.dp), note = ScreenStrings.POINT_NOTE)
         } else {
             PortraitStack {
                 arrived(Modifier.fillMaxWidth())
@@ -391,12 +392,16 @@ private fun RestStartButton(count: Int, onClick: () -> Unit, modifier: Modifier)
 
 /** 오른쪽 안내 (132:1679): 아이콘 64 + 제목 Bold 50 + 설명 Regular 40. 아이콘이 없으면 시안처럼 빈 칸. */
 @Composable
-private fun InfoBlock(icon: Int?, title: String, body: String, modifier: Modifier) {
+private fun InfoBlock(icon: Int?, title: String, body: String, modifier: Modifier, note: String? = null) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(5.dp)) {
         if (icon != null) Image(painterResource(icon), null, Modifier.size(64.dp)) else Box(Modifier.size(64.dp).background(WakeonColors.IconSlot))
         Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
             Text(title, style = WakeonType.title1, color = WakeonColors.White)
-            Text(body, style = WakeonType.body1.copy(lineHeight = 46.sp), color = WakeonColors.InfoText)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(body, style = WakeonType.body1.copy(lineHeight = 46.sp), color = WakeonColors.InfoText)
+                // 작은 안내(caption/1): 시안에 없음. 제휴한 것처럼 보이지 않게 덧붙인다(DESIGN_DIFF W-12)
+                if (note != null) Text(note, style = WakeonType.caption1, color = WakeonColors.InfoText)
+            }
         }
     }
 }
@@ -431,7 +436,8 @@ private fun RestLayout(
 
 @Composable
 fun W13Rest(s: WakeonSnapshot, actions: WakeonActions) {
-    val left = s.restEndsAtMs?.let { it - s.nowMs } ?: 0
+    // 시연 휴식(30초)도 화면은 15:00부터 같은 비율로 줄어든다: 표시 = 남은 실제 시간 × (화면 길이 / 실제 길이)
+    val left = s.restEndsAtMs?.let { end -> nominalRest(s, end - s.nowMs) } ?: 0
     RestLayout(
         s, actions,
         top = {
@@ -446,7 +452,7 @@ fun W13Rest(s: WakeonSnapshot, actions: WakeonActions) {
                     )
                 }
                 Text(
-                    ScreenStrings.restOf(WakeonConfig().restDefaultMin), style = WakeonType.body1, color = WakeonColors.SubText,
+                    ScreenStrings.restOf(restMinutes(s)), style = WakeonType.body1, color = WakeonColors.SubText,
                     textAlign = TextAlign.Center, modifier = Modifier.width(if (landscape()) 906.dp else 726.dp),
                 )
             }
@@ -472,7 +478,7 @@ fun W13bAlarm(s: WakeonSnapshot, actions: WakeonActions) {
         },
         chips = {
             RestChip(R.drawable.wk_ic_bell, true, 44f, 44f, ScreenStrings.CHIP_ALARM_MAX, active = true)
-            RestChip(R.drawable.wk_ic_timer, false, 81.677f, 81.677f, ScreenStrings.restDone(WakeonConfig().restDefaultMin), active = false)
+            RestChip(R.drawable.wk_ic_timer, false, 81.677f, 81.677f, ScreenStrings.restDone(restMinutes(s)), active = false)
         },
     )
 }
@@ -559,3 +565,11 @@ private fun PieGlyph(modifier: Modifier) {
         }
     }
 }
+
+/** 화면 기준 휴식 길이(분): 15분 + 연장. 값이 없으면 설정 기본값. */
+private fun restMinutes(s: WakeonSnapshot): Int =
+    if (s.restNominalMs > 0) (s.restNominalMs / MINUTE_MS).toInt() else WakeonConfig().restDefaultMin
+
+/** 남은 실제 시간을 화면 기준 시간으로 바꾼다(시연 휴식이면 늘려서). */
+internal fun nominalRest(s: WakeonSnapshot, actualLeftMs: Long): Long =
+    if (s.restTotalMs > 0 && s.restNominalMs > 0) actualLeftMs * s.restNominalMs / s.restTotalMs else actualLeftMs

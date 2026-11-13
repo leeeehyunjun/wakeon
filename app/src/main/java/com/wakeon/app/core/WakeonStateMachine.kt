@@ -164,6 +164,10 @@ class WakeonStateMachine(
     // 휴식·재출발
     private var restStartedAtMs = 0L
     private var restTotalMs = 0L
+    /** 휴식의 화면·대사 기준 길이(15분 + 연장). 시연(30초 휴식)에서도 화면은 이 길이로 보인다. */
+    private var restNominalMs = 0L
+    private var restExtensions = 0
+    private var restRefusedSaid = false
     private var restEndsAtMs: Long? = null
     private var alarmLevel = 0
     private var moreRestCount = 0
@@ -295,6 +299,7 @@ class WakeonStateMachine(
         when {
             state == S11 && intent == UserIntent.YES -> startRest("tap", config.restDefaultMin)
             state == S12 && intent == UserIntent.AWAKE -> awake()
+            state == S12 && intent == UserIntent.SNOOZE_5 -> extendRest("tap")
             onListen != null -> deliverListen(listenToken, ListenResult.Answer(tapWord(intent), null))
             afterSpeech != null && (state == S06 || state == S08) -> {
                 // 질문을 말하는 도중에 누름: 말을 멈추고 대답으로 처리
@@ -903,22 +908,69 @@ class WakeonStateMachine(
         log("rest_choice", "choice" to choice)
         go(S12, "rest_$choice")
         restStartedAtMs = clock.nowMs()
-        restTotalMs = restSecOverride?.let { it * SECOND_MS * minutes / config.restDefaultMin }
-            ?: scaled(minutes * MINUTE_MS)
+        restTotalMs = restActualMs(minutes * MINUTE_MS)
+        restNominalMs = minutes * MINUTE_MS
+        restExtensions = 0
+        restRefusedSaid = false
         restEndsAtMs = restStartedAtMs + restTotalMs
         alarmLevel = 0
         summary = summary.copy(rests = summary.rests + 1)
         log("rest_started", "min" to minutes)
         say(listOf(VoiceLines.V34_RECLINE, VoiceLines.v33(minutes)))
-        val prewarn = if (restSecOverride != null) config.demoRestPrewarnS * SECOND_MS else scaled(config.restPrewarnS * SECOND_MS)
-        after(T_PREWARN, (restTotalMs - prewarn).coerceAtLeast(0)) { say(VoiceLines.V34_UPRIGHT) }
-        after(T_REST_END, restTotalMs) {
-            // 휴식 완료: 앱이 시작한 휴식에서 P가 휴식 길이만큼 이어짐 → 연속 주행 시간 0 (5-2)
+        after(T_REST_DONE, restTotalMs) {
+            // 휴식 완료: 앱이 시작한 휴식에서 P가 휴식 길이만큼 이어짐 → 연속 주행 시간 0 (5-2). 연장과 상관없이 처음 길이에서 한 번.
             log("rest_completed", "min" to minutes, "app_induced" to true)
             triggers.reset()
-            alarmStep()
         }
-        // TODO(4-2): "5분만" 연장 최대 3회, 4회째 V-36. 휴식 중 브레이크 → "등받이를 세워 주세요"(A14)
+        scheduleRestEnd(restTotalMs)
+        // TODO(4-2): 휴식 중 브레이크 → "등받이를 세워 주세요"(A14)
+    }
+
+    /** 화면·대사 기준 길이를 실제 타이머 길이로: 시연 휴식(restSec)은 15분 → 그 초, 아니면 배속만. */
+    private fun restActualMs(nominalMs: Long): Long =
+        restSecOverride?.let { it * SECOND_MS * nominalMs / (config.restDefaultMin * MINUTE_MS) } ?: scaled(nominalMs)
+
+    /** 지금부터 [leftMs] 뒤에 알람, 그 직전에 "등받이를 세워 주세요". */
+    private fun scheduleRestEnd(leftMs: Long) {
+        val prewarn = if (restSecOverride != null) config.demoRestPrewarnS * SECOND_MS else scaled(config.restPrewarnS * SECOND_MS)
+        after(T_PREWARN, (leftMs - prewarn).coerceAtLeast(0)) { say(VoiceLines.V34_UPRIGHT) }
+        after(T_REST_END, leftMs) { alarmStep() }
+    }
+
+    /**
+     * "5분만" / "+ 5분" (F10 7번): 5분 연장, 최대 3회. 알람이 울리는 중이면 알람을 멈추고 지금부터 5분.
+     * 4회째 요청에는 연장하지 않고 V-36을 한 번 말한다(AC-10.4).
+     */
+    private fun extendRest(source: String) {
+        if (state != S12) return
+        val ringing = alarmLevel > 0
+        if (restExtensions >= config.restExtendMax) {
+            log("rest_extend_refused", "source" to source)
+            if (!restRefusedSaid) {
+                restRefusedSaid = true
+                if (listenToken != NONE) effects.stopListening()
+                listenToken = NONE
+                onListen = null
+                say(VoiceLines.V36) { if (alarmLevel > 0) listenForAwake() }
+            }
+            return
+        }
+        restExtensions++
+        log("rest_extended", "count" to restExtensions, "source" to source)
+        val now = clock.nowMs()
+        val addActual = restActualMs(config.restExtendMin * MINUTE_MS)
+        if (ringing) {
+            cancelVoice()
+            timers.remove(T_STEP)
+            alarmLevel = 0
+        }
+        val end = if (ringing) now + addActual else (restEndsAtMs ?: now) + addActual
+        restEndsAtMs = end
+        restTotalMs = end - restStartedAtMs
+        restNominalMs = restTotalMs * config.restDefaultMin * MINUTE_MS / restActualMs(config.restDefaultMin * MINUTE_MS)
+        scheduleRestEnd(end - now)
+        val leftMin = (((end - now) * restNominalMs / restTotalMs + MINUTE_MS - 1) / MINUTE_MS).toInt()
+        say(VoiceLines.v33(leftMin))
     }
 
     private fun alarmStep() {
@@ -942,13 +994,17 @@ class WakeonStateMachine(
 
     private fun listenForAwake() {
         listen(config.offerWaitS * SECOND_MS) { r ->
-            if (r is ListenResult.Answer && Grammar.intentIn(r.text, S12) == UserIntent.AWAKE) awake() else listenForAwake()
+            when ((r as? ListenResult.Answer)?.let { Grammar.intentIn(it.text, S12) }) {
+                UserIntent.AWAKE -> awake()
+                UserIntent.SNOOZE_5 -> extendRest("voice")
+                else -> listenForAwake()
+            }
         }
     }
 
     private fun awake() {
         val elapsed = clock.nowMs() - restStartedAtMs
-        val nominalMs = if (restTotalMs > 0) elapsed * (config.restDefaultMin * MINUTE_MS) / restTotalMs else elapsed
+        val nominalMs = if (restTotalMs > 0) elapsed * restNominalMs / restTotalMs else elapsed
         summary = summary.copy(restMinutes = summary.restMinutes + (nominalMs / MINUTE_MS).toInt())
         log("rest_awake", "after_min" to nominalMs / MINUTE_MS)
         restEndsAtMs = null
@@ -1215,6 +1271,7 @@ class WakeonStateMachine(
             listenEndsAtMs = listenEndsAtMs,
             restEndsAtMs = restEndsAtMs,
             restTotalMs = restTotalMs,
+            restNominalMs = restNominalMs,
             alarmLevel = alarmLevel,
             arrivedMinuteOfDay = arrivedMinute,
             summary = summary,
@@ -1233,6 +1290,7 @@ class WakeonStateMachine(
         private const val T_STEP = "step"
         private const val T_PREWARN = "prewarn"
         private const val T_REST_END = "rest_end"
+        private const val T_REST_DONE = "rest_done"
 
         /** 주행 쪽 상태. 이 상태에서 P가 10분 이어지면 세션을 끝낸다. */
         private val DRIVE_STATES = setOf(S03, S04, S05, S06, S07, S08, S09, S10)

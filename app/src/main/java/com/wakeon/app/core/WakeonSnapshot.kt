@@ -63,6 +63,8 @@ data class WakeonSnapshot(
     val listenEndsAtMs: Long? = null,
     val restEndsAtMs: Long? = null,
     val restTotalMs: Long = 0,
+    /** 화면에 보이는 휴식 길이(15분 + 연장). 시연에서 실제 타이머가 30초여도 화면은 15:00부터 줄어든다. */
+    val restNominalMs: Long = 0,
     val alarmLevel: Int = 0,
     val arrivedMinuteOfDay: Int? = null,
     val summary: SessionSummary = SessionSummary(),

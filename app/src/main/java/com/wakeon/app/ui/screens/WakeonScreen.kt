@@ -166,7 +166,7 @@ private fun PW10b() = P(sample(S09, Gear.D, VoiceLines.v25("1", "선기졸음쉼
 private fun PW12() = P(sample(S11, Gear.P, VoiceLines.V30_A, phase = VoicePhase.LISTENING).copy(offer = offer, arrivedMinuteOfDay = 23 * 60 + 21))
 
 @Preview(name = "W-13 휴식", widthDp = 1700, heightDp = 1184) @Composable
-private fun PW13() = P(sample(S12, Gear.P, VoiceLines.v33(15)).copy(restEndsAtMs = 872_000, nowMs = 0))
+private fun PW13() = P(sample(S12, Gear.P, VoiceLines.v33(15)).copy(restEndsAtMs = 29_000, nowMs = 0, restTotalMs = 30_000, restNominalMs = 15 * MINUTE_MS))
 
 @Preview(name = "W-13b 기상 알람", widthDp = 1700, heightDp = 1184) @Composable
 private fun PW13b() = P(sample(S12, Gear.P, VoiceLines.V35).copy(alarmLevel = 2))

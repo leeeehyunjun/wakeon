@@ -90,6 +90,9 @@ data class WakeonConfig(
     val restDefaultMin: Int = 15,
     /** 종료 전 "등받이를 세워 주세요" (A10) */
     val restPrewarnS: Int = 60,
+    /** "5분만" 연장: 한 번에 5분, 최대 3회. 4회째는 V-36 (F10 7번, AC-10.4) */
+    val restExtendMin: Int = 5,
+    val restExtendMax: Int = 3,
     /** 알람 단계 간격 · 단계 수 */
     val alarmStepS: Int = 30,
     val alarmLevels: Int = 3,

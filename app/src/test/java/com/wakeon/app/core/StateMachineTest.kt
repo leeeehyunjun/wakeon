@@ -22,6 +22,7 @@ import com.wakeon.app.vehicle.Gear
 import com.wakeon.app.vehicle.TurnSignal
 import com.wakeon.app.vehicle.VehicleSignals
 import com.wakeon.app.voice.Line
+import com.wakeon.app.voice.UserIntent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -162,8 +163,8 @@ private class FakeEffects : Effects {
 
 class StateMachineTest {
 
-    @Test
-    fun `시연 23장면 경로 - 출발 전 체크부터 재출발까지 한 번에 돈다`() {
+    /** 시연 장면 1~17을 지나 휴식(S-12)이 시작된 상태까지 간다(장면마다 확인 포함). */
+    private fun toRest(): Harness {
         val h = Harness()
         h.m.demoTimeScale(60f)
         h.m.demoRestSeconds(30)
@@ -284,10 +285,15 @@ class StateMachineTest {
         h.answer("응, 잘게.", 1_200)
         assertEquals(S12, h.state)
         assertEquals(listOf("V-34", "V-33"), h.fx.lastLines.map { it.id })
+        return h
+    }
+
+    @Test
+    fun `시연 23장면 경로 - 출발 전 체크부터 재출발까지 한 번에 돈다`() {
+        val h = toRest()
 
         // 장면 18~19: 30초 휴식 → 5초 전 "등받이를 세워 주세요" → 알람 + V-35 → "일어났어" → S-14
         // 시연 배속(60배)에서는 알람 간격 30초가 0.5초가 된다. 그래도 1단계 소리와 V-35가 끊기지 않아야 한다(2026-11-13).
-        h.m.demoTimeScale(60f)
         while (!h.fx.sounds.contains(Sound.Alarm(1))) {
             h.finishSpeech()
             h.tick(200)
@@ -325,6 +331,42 @@ class StateMachineTest {
             listOf("S-01", "S-02", "S-01", "S-03", "S-04", "S-05", "S-04", "S-06", "S-04", "S-06", "S-07", "S-08", "S-09", "S-11", "S-12", "S-14", "S-16", "S-03"),
             h.states(),
         )
+    }
+
+    @Test
+    fun `휴식 연장은 5분씩 최대 3회, 4회째는 V-36 한 번`() {
+        val h = toRest()
+        h.drain()
+        assertEquals(15 * MINUTE_MS, h.snap.restNominalMs)
+        // 시연 휴식 30초 = 화면 15분. 5분 연장 = 실제 10초
+        h.m.onTap(UserIntent.SNOOZE_5)
+        assertEquals(20 * MINUTE_MS, h.snap.restNominalMs)
+        assertEquals(40_000L, h.snap.restTotalMs)
+        assertEquals("V-33", h.fx.lastLines.single().id)
+        h.drain()
+        // 알람이 울리는 중에 "5분만" → 알람을 멈추고 지금부터 5분
+        while (h.snap.alarmLevel == 0) {
+            h.finishSpeech()
+            h.tick(200)
+        }
+        h.untilListening()
+        h.answer("5분만", 1_000)
+        assertEquals(S12, h.state)
+        assertEquals(0, h.snap.alarmLevel)
+        assertEquals("5분 뒤에 깨워 드릴게요. 편히 쉬세요.", h.fx.lastLines.single().text)
+        h.drain()
+        h.m.onTap(UserIntent.SNOOZE_5)
+        h.drain()
+        assertEquals(3, h.logs.count { it.first == "rest_extended" })
+        // 4회째: 연장하지 않고 V-36 한 번
+        val total = h.snap.restTotalMs
+        h.m.onTap(UserIntent.SNOOZE_5)
+        assertEquals("V-36", h.fx.lastLines.single().id)
+        h.drain()
+        h.m.onTap(UserIntent.SNOOZE_5)
+        assertEquals(total, h.snap.restTotalMs)
+        assertEquals(1, h.spokenIds().count { it == "V-36" })
+        assertEquals(1, h.logs.count { it.first == "rest_completed" })
     }
 
     @Test
