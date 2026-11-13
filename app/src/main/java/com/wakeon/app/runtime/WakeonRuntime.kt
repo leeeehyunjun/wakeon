@@ -236,6 +236,11 @@ class WakeonRuntime(context: Context) {
         e.int("driveMin")?.let { machine.demoDriveMinutes(it) }
         e.float("routeKm")?.let { machine.onRoutePosition(it.toDouble()) }
         if (e.bool("arrive") == true) machine.onArriveSignal()
+        // 시연 준비: 내비 목적지 "이름|위도|경도" (상태 머신과 무관, 오른쪽 내비 창에 경로를 띄우는 용도)
+        e.string("navDest")?.split("|")?.takeIf { it.size == 3 }?.let { (name, lat, lng) ->
+            val ok = lat.toDoubleOrNull()?.let { la -> lng.toDoubleOrNull()?.let { lo -> navi.setDestination(name, la, lo) } }
+            Log.i(TAG, "demo nav_dest name=$name requested=${ok == true}")
+        }
 
         e.string("answer")?.let { text ->
             answers.add(text, e.int("latencyMs")?.toLong() ?: DemoAnswers.DEFAULT_LATENCY_MS)

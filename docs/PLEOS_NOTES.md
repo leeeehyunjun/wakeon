@@ -466,3 +466,18 @@ stt.stop()
 | 결과 | 이전 `voice_check_20261113_100828.wav`: 합격이지만 순간 잡음 최대 0.208% · 평균 0.034%. 새 `voice_check_20261113_105411.wav`: 합격, 최대 0.046% · 평균 0.005%, 무음 RMS 0.0. mp4 소리도 합격(0.046% · 0.006%, 무음 0.2) |
 
 기준 0.5%는 그대로 두었다. 100828 녹음은 이 기준을 통과했지만 귀로는 갈라짐이 들렸다. 1초 최대값 기준은 이번 갈라짐을 잡지 못하고, 평균의 차이(4~5배)에서 드러난다.
+
+---
+
+## 13. 시스템 차량 값·내비 지도·벨트 경고 (2026-11-13, 녹화 화면 왼쪽·오른쪽)
+
+| 확인 | 결과 |
+|---|---|
+| `adb shell cmd car_service inject-vhal-event` | **막힘**: "requires non-user build"(이 에뮬레이터는 user 빌드). `get-property-value`·`get-carpropertyconfig`도 같음 |
+| 에뮬레이터 콘솔·gRPC | 차량 값(Car data) 기능 없음 |
+| **Pleos 가상 콘솔** | 기기 안 `http://localhost:8088`("Pleos Connect Virtual Console", 앱 `ai.pleos.hardware.vehicle.emulator`가 웹뷰로 띄움). `adb forward tcp:18088 tcp:8088` 뒤 맥에서 REST로 쓸 수 있다. 값을 받으려면 `POST /browser/session?client=…` 접속 신호를 3초 안에 계속 보내야 한다(아니면 503 `emulator_inactive`) |
+| 가상 콘솔 API | `PUT /vehicle/gear?gear=Park\|Reverse\|Neutral\|Drive`, `PUT /vehicle/controls?speed=km/h&accelerator=%&brake=%&steering=도`, `PUT /vehicle/turn-signal?mode=Off\|BlinkLeft\|BlinkRight`, `GET /vehicle/state`, `GET /vehicle/catalog`(값 63종) |
+| 결과 | 시스템 Driving view가 앱과 같은 기어·속도를 보인다(D · 98·101·99·97·96·72·92km/h, 정차 P · 0). 앱의 실제 값(`real_gear`·`real_speed`)도 같이 바뀐다. `demo/run_scenario.sh`의 `car` |
+| 안전벨트 경고 | **끄지 못함.** Driving view는 Pleos 서비스의 벨트 미체결 이벤트(`onSeatBeltWarningEvent`)로 "안전 벨트를 매세요."를 띄운다. 가상 콘솔에 벨트 체결 값이 없고, 경고등(`/vehicle/telltales/simulator` SeatBelt Off)·착석(`/vehicle/seat` occupied)·전원(`/vehicle/power-system/simulator` Ready/On)을 바꿔도 그대로. **주행 장면(D, 속도 > 0)에서는 도로 화면으로 바뀌어 보이지 않고, 정차 장면(P)에서만 보인다** |
+| 내비 "서비스 연결 중입니다" | 내비(`ai.umos.maps.android.navigation.app`)가 지도 서버 `connect-gw-coral.umos.ai`의 주소를 찾지 못한다(`UnknownHostException`, 1초마다 재시도). 기기에서 `ping 8.8.8.8`은 되지만 `ping google.com`은 "unknown host"(DNS 실패). 기기 DNS = 10.0.2.3(에뮬레이터 대리). 맥에서는 같은 서버에 접속된다(HTTP 200). 맥 방화벽 꺼짐, 프록시 없음. 에뮬레이터 재시작·`-dns-server`(맥 DNS 202.30.38.101·164.124.101.2와 8.8.8.8) 지정 모두 효과 없음 → **원인 미해결** |
+| 내비 목적지 | 앱에 시연 신호 `navDest`("이름\|위도\|경도")를 더했다 → NaviHelper `requestRoute()`. 내비가 지도 서버에 붙어야 경로가 뜬다(지금은 확인 못 함) |

@@ -1019,18 +1019,23 @@ class WakeonStateMachine(
         questionTotal = config.recheckQuestions
         // "등받이를 세워 주세요" 안내 전에는 질문하지 않는다(AC-11.1). 5초 뒤 질문.
         say(VoiceLines.V34_UPRIGHT) {
-            after(T_NEXT, config.recheckBackrestWaitS * SECOND_MS) {
-                say(VoiceLines.V50) { askRecheck() }
-            }
+            // 스토리보드 장면 20: "출발 전에 세 가지만 물어볼게요." + "12 빼기 4는요?"를 한 번에 말한다.
+            after(T_NEXT, config.recheckBackrestWaitS * SECOND_MS) { askRecheck(intro = true) }
         }
     }
 
-    private fun askRecheck() {
+    private fun askRecheck(intro: Boolean = false) {
         val q = QuestionBank.recheck[recheckIndex % QuestionBank.recheck.size]
         questionNo = recheckIndex + 1
         loadDuringQuestion = signals.highLoad
-        askQuestion(Line(q.id, q.text)) { r ->
+        clearHeard()
+        val lines = listOfNotNull(VoiceLines.V50.takeIf { intro }, Line(q.id, q.text))
+        askQuestion(lines, config.talkNoAnswerS * SECOND_MS) { r ->
             if (r is ListenResult.Answer) {
+                // 화면(W-15): 다음 문항 전까지 들은 대답을 보여 준다(판정은 보여 주지 않음).
+                heard = r.text
+                heardCorrect = null
+                phase = VoicePhase.RESULT
                 val correct = QuestionBank.judge(q, r.text, memory)
                 val resp = response(q, r, correct)
                 if (resp.valid) recheckLatencies += resp.latencyMs
@@ -1039,7 +1044,8 @@ class WakeonStateMachine(
             }
             recheckIndex++
             if (recheckIndex < config.recheckQuestions) {
-                after(T_NEXT, config.precheckGapMs) { askRecheck() }
+                val gap = if (r is ListenResult.Answer) config.talkResultShowS * SECOND_MS else config.precheckGapMs
+                after(T_NEXT, gap) { askRecheck() }
             } else {
                 finishRecheck()
             }

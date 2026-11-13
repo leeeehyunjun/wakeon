@@ -3,22 +3,28 @@
 #   bash demo/run_scenario.sh              # 장면 1~22
 #   bash demo/run_scenario.sh --from 14    # 1~13은 쉬지 않고 지나가고 14부터 장면마다 보여 준다(녹화도 14부터)
 #   bash demo/run_scenario.sh --record     # 에뮬레이터 자체 녹화로 recordings/demo_<시각>.mp4·.wav도 남긴다
+#   bash demo/run_scenario.sh --skip-nav-check   # 내비가 지도 서버에 연결되지 않아도 그대로 진행
 # 녹화할 때는 에뮬레이터를 녹화 모드로 켠다: bash demo/start_emulator.sh --record (맥 스피커로는 소리가 안 나옴)
 #
 # 장면 0(타이틀)과 23(엔드 카드)은 편집에서 넣는다. 장면 사이는 정해진 시간이 아니라 앱 로그(말 시작·화면 바뀜)를 보고 넘어간다.
 # 정차 화면은 2:0(가로) 창, 주행 화면은 1:1(세로) 창으로 바꿔 가며 진행한다(창 손잡이를 adb로 끈다, PLEOS_NOTES 2장).
 # 대답은 시연 신호로 묻기 전에 미리 넣는다(시연 모드는 듣기 창이 열릴 때 대답이 없으면 5초 무응답). 화면에는 시연 표시가 없다.
+# 시스템 화면(왼쪽 Driving view)도 같은 기어·속도를 보이도록, 시연 신호와 함께 에뮬레이터의 Pleos 가상 콘솔
+# (기기 안 http://localhost:8088, "Pleos Connect Virtual Console")에 차량 값을 넣는다. 셸의 `cmd car_service
+# inject-vhal-event`는 이 에뮬레이터(user 빌드)에서 막혀 있다(PLEOS_NOTES 12장).
 
 ADB="${ADB:-$HOME/Library/Android/sdk/platform-tools/adb}"
 DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$DIR/.." && pwd)"
 FROM=1
 RECORD=0
+NAV_CHECK=1
 while [ $# -gt 0 ]; do
   case "$1" in
     --from) FROM="$2"; shift 2 ;;
     --record) RECORD=1; shift ;;
-    *) echo "사용법: bash demo/run_scenario.sh [--from 장면] [--record]"; exit 1 ;;
+    --skip-nav-check) NAV_CHECK=0; shift ;;
+    *) echo "사용법: bash demo/run_scenario.sh [--from 장면] [--record] [--skip-nav-check]"; exit 1 ;;
   esac
 done
 
@@ -26,6 +32,26 @@ b() { "$ADB" shell am broadcast -a com.wakeon.app.DEMO -p com.wakeon.app "$@" >/
 # 대답 넣기. 띄어쓰기가 있으면 작은따옴표로 한 번 더 감싼다(DEMO_SCENARIO 3장).
 a() { b --es answer "'$1'" --ei latencyMs "$2"; }
 clear_log() { "$ADB" logcat -c; }
+
+# ── 시스템 차량 값 (Pleos 가상 콘솔 → VHAL)
+CONSOLE_PORT=18088
+CONSOLE="http://127.0.0.1:$CONSOLE_PORT"
+# 콘솔은 접속 신호가 3초 넘게 끊기면 값을 받지 않는다(emulator_inactive). 1초마다 보낸다.
+heartbeat() { while true; do curl -s -m 2 -X POST "$CONSOLE/browser/session?client=wakeon-demo" >/dev/null 2>&1; sleep 1; done; }
+put() { curl -s -m 3 -o /dev/null -w "%{http_code}" -X PUT "$CONSOLE$1"; }
+# car 기어(Park|Drive) 속도 [브레이크%] [방향지시등 Off|BlinkLeft|BlinkRight]
+car() {
+  local gear=$1 speed=$2 brake=${3:-0} turn=${4:-Off} acc=0
+  [ "$speed" -gt 0 ] && [ "$brake" -eq 0 ] && acc=20
+  if [ "$gear" = Park ]; then
+    put "/vehicle/controls?speed=$speed&accelerator=$acc&brake=$brake&steering=0" >/dev/null
+    put "/vehicle/gear?gear=$gear" >/dev/null
+  else
+    put "/vehicle/gear?gear=$gear" >/dev/null
+    put "/vehicle/controls?speed=$speed&accelerator=$acc&brake=$brake&steering=0" >/dev/null
+  fi
+  put "/vehicle/turn-signal?mode=$turn" >/dev/null
+}
 
 SCENE=0
 FAILS=()
@@ -73,7 +99,18 @@ mkdir -p "$ROOT/recordings"
 LOG="$ROOT/recordings/scenario_$(date +%Y%m%d_%H%M%S).log"
 "$ADB" logcat -s 'Wakeon:*' > "$LOG" &
 LOGCAT_PID=$!
-trap 'kill $LOGCAT_PID 2>/dev/null' EXIT
+"$ADB" forward tcp:$CONSOLE_PORT tcp:8088 >/dev/null
+heartbeat &
+HB_PID=$!
+trap 'kill $LOGCAT_PID $HB_PID 2>/dev/null' EXIT
+sleep 1
+car Park 0
+if curl -s -m 3 "$CONSOLE/vehicle/state" | grep -q '"value":"Park"'; then
+  echo "시스템 차량 값: 가상 콘솔 연결됨 (P · 0km/h)"
+else
+  echo "  ✗ 시스템 차량 값을 바꾸지 못함(가상 콘솔 응답 없음). 왼쪽 Driving view는 P · 0km/h로 남는다"
+  FAILS+=("준비: 가상 콘솔")
+fi
 
 "$ADB" shell am start -n com.wakeon.app/.MainActivity >/dev/null
 sleep 2
@@ -86,10 +123,36 @@ clear_log
 b --ez reset true --es gear P --ei speed 0 --ez c3 false
 wait_log "tts_spoken vid=V-02" 30
 
+# 내비 점검(녹화 전): 지도 서버에 붙었는지 → 목적지 부산역 → 경로 안내 시작
+NAV_PKG=ai.umos.maps.android.navigation.app
+NAV_PID="$("$ADB" shell pidof $NAV_PKG | tr -d '\r')"
+nav_ready=0
+if [ -n "$NAV_PID" ]; then
+  # 연결되지 않은 내비는 1초마다 서버 연결을 다시 시도하며 "gateway probe failed"를 남긴다. 6초 동안 없으면 연결된 것으로 본다.
+  "$ADB" logcat -c
+  sleep 6
+  if ! "$ADB" logcat -d --pid="$NAV_PID" | grep -q "gateway probe failed"; then nav_ready=1; fi
+fi
+if [ "$nav_ready" = 1 ]; then
+  clear_log
+  b --es navDest "'부산역|35.1151|129.0415'"
+  if wait_log "navi route_started" 20; then echo "내비: 지도 연결됨 · 목적지 부산역 경로 안내 시작"; fi
+else
+  reason="$("$ADB" logcat -d --pid="$NAV_PID" 2>/dev/null | grep "gateway probe failed" | tail -1 | sed 's/.*gateway probe failed //')"
+  echo "  ✗ 내비가 지도 서버에 연결되지 않음(화면: \"서비스 연결 중입니다\"). 원인: ${reason:-내비 앱 없음}"
+  echo "    에뮬레이터 안에서 서버 이름을 찾지 못하면(UnknownHostException) 맥 네트워크를 바꾸거나 에뮬레이터를 다시 켠 뒤 시도한다."
+  if [ "$NAV_CHECK" = 1 ]; then
+    echo "    녹화하지 않고 멈춘다. 그래도 진행하려면 --skip-nav-check"
+    exit 2
+  fi
+  FAILS+=("준비: 내비 지도 연결")
+fi
+
 # ════════════════════════════════════════ 장면 1~4 · 출발 전 (가로 창)
 scene 1 W-02 "홈 · 출발 전"
 clear_log
 b --ez reset true --es clock 21:04 --es gear P --ei speed 0 --ef timeScale 60 --ei restSec 30 --ez c3 false
+car Park 0
 a "응, 부산까지." 1000; a "삼." 1000; a "십이." 1000; a "강아지." 1000; a "김치찌개요" 1000
 wait_log "tts_start vid=V-03" 30
 scene 2 W-03 "출발 전 체크 1/4 · 졸린 정도"
@@ -105,11 +168,13 @@ scene 5 W-04 "주행 대기 · 연속 1시간 42분"
 window portrait
 clear_log
 b --es gear D --ei speed 98 --ef routeKm 226 --ei driveMin 102 --es clock 22:46
+car Drive 98
 wait_log "screen W-04" 20
 hold 5
 clear_log
 a "네, 맛있었어요." 1000; a "돼지국밥이요." 1000; a "네, 한 마리요." 1200; a "보리요." 1700
 b --ei driveMin 124 --ei speed 101 --es clock 23:08
+car Drive 101
 echo "  (장면 6 앞: 점심 줄기 2문항 — 편집에서 줄임)"
 wait_log "tts_start vid=T-PET-1" 90
 scene 6 W-05 "대화 3/6 · 강아지 줄기"
@@ -118,11 +183,13 @@ scene 7 W-05b "대답 인식 → 이름"
 wait_log "talk_q id=T-PET-2" 30
 scene 8 W-06 "대화 멈춤 · 브레이크 + 방향지시등"
 b --ez brake true --es turn R --ei speed 84 --es clock 23:09
+car Drive 84 40 BlinkRight
 wait_log "screen W-06" 10
 hold 4
 clear_log
 a "…세 살… 인가?" 2800
 b --ez brake false --es turn OFF --ei speed 99 --es clock 23:10
+car Drive 99
 wait_log "tts_start vid=T-PET-3" 30
 scene 9 W-05 "대답이 늦어짐 (2.8초)"
 a "아니, 괜찮아." 1500
@@ -139,16 +206,20 @@ scene 13 W-08 "단계적 경고 1→3"
 clear_log
 a "어… 응." 1300
 b --ei speed 97 --es clock 23:14
+car Drive 97
 wait_log "tts_start vid=V-21" 60
 scene 14 W-09 "쉼터 제안 · 선기졸음쉼터 12km"
 b --ei speed 96 --es clock 23:15
+car Drive 96
 wait_log "tts_start vid=V-24" 30
 scene 15 W-10 "경유지 추가"
 b --ei speed 95
+car Drive 95
 wait_log "tts_spoken vid=V-24" 20
 hold 2
 clear_log
 b --ef routeKm 237 --ei speed 72 --es clock 23:22
+car Drive 72
 wait_log "tts_start vid=V-25" 30
 scene 16 W-10b "1km 전 안내"
 wait_log "tts_spoken vid=V-25" 20
@@ -159,6 +230,7 @@ scene 17 W-12 "도착 · 휴식 제안"
 window landscape
 clear_log
 a "응, 잘게." 1200
+car Park 0
 b --es gear P --ei speed 0 --es clock 23:24 --ez arrive true
 wait_log "screen W-13" 40
 scene 18 W-13 "휴식 (시연 30초 = 화면 15분)"
@@ -183,6 +255,7 @@ scene 22 W-04 "다시 대기 · 연속 0분"
 window portrait
 clear_log
 b --es gear D --ei speed 92 --es clock 23:43
+car Drive 92
 wait_log "state from=S-16 to=S-03" 20
 wait_log "screen W-04" 20
 hold 4
@@ -196,6 +269,7 @@ fi
 echo "정리 — 가로 창, 홈으로"
 window landscape
 b --ez reset true --es gear P --ei speed 0
+car Park 0
 sleep 1
 b --ez reset true
 

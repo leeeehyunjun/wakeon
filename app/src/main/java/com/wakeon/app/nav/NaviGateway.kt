@@ -3,6 +3,8 @@ package com.wakeon.app.nav
 import ai.pleos.playground.navi.constants.NaviErrorCode
 import ai.pleos.playground.navi.constants.WaypointIndex
 import ai.pleos.playground.navi.data.RequestWaypointInfo
+import ai.pleos.playground.navi.data.RouteInfo
+import ai.pleos.playground.navi.data.RouteStartInfo
 import ai.pleos.playground.navi.data.WaypointArrivedInfo
 import ai.pleos.playground.navi.data.WaypointChangedInfo
 import ai.pleos.playground.navi.helper.NaviHelper
@@ -19,6 +21,10 @@ data class NaviResult(val ok: Boolean, val reason: String)
 /** 내비 연결. 실패하면 앱 안 표시·음성 길안내로 대신한다(SPEC F8, E-5). */
 interface NaviGateway {
     fun addWaypoint(rest: RestArea, onResult: (NaviResult) -> Unit)
+
+    /** 내비에 목적지를 넣어 경로 안내를 시작한다(시연 준비용 `navDest`). 연결 전이면 false. */
+    fun setDestination(name: String, latitude: Double, longitude: Double): Boolean
+
     fun release()
 }
 
@@ -45,6 +51,10 @@ class PleosNaviGateway(
         override fun onWayPointArrived(waypointArrivedInfo: WaypointArrivedInfo) {
             Log.i(TAG, "navi waypoint_arrived")
             main.post(onArrived)
+        }
+
+        override fun onRouteStarted(routeStartInfo: RouteStartInfo) {
+            Log.i(TAG, "navi route_started")
         }
 
         override fun onError(errorCode: NaviErrorCode) {
@@ -92,6 +102,23 @@ class PleosNaviGateway(
             Log.i(TAG, "navi add_waypoint_requested")
         } catch (e: Exception) {
             finish(NaviResult(false, "exception_${e.javaClass.simpleName}"))
+        }
+    }
+
+    override fun setDestination(name: String, latitude: Double, longitude: Double): Boolean {
+        if (!connected) {
+            Log.w(TAG, "navi route_request_skipped reason=not_connected")
+            return false
+        }
+        return try {
+            helper.requestRoute(
+                RouteInfo(latitude = latitude, longitude = longitude, poiName = name, poiId = "", address = "", poiSubId = "0"),
+            )
+            Log.i(TAG, "navi route_requested name=$name")
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "navi route_request_failed ${e.javaClass.simpleName} ${e.message}")
+            false
         }
     }
 

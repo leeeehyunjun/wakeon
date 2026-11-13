@@ -311,8 +311,10 @@ class StateMachineTest {
 
         // 장면 20: 등받이 안내 → V-50 → 3문항 → 평균 ≤ B×1.5 → S-16
         assertEquals("12 빼기 4는요?", h.untilListening()?.text)
+        assertEquals(listOf("V-50", "Q-R1"), h.fx.lastLines.map { it.id }) // 한 번에 말함
         assertTrue(h.spokenIds().takeLast(3).containsAll(listOf("V-34", "V-50")))
         h.answer("팔.", 1_100)
+        assertEquals("팔.", h.snap.heard) // 다음 문항 전까지 들은 대답을 보여 줌
         h.answer("십삼", 1_000)
         h.answer("육", 1_000)
         assertEquals(S16, h.state)
