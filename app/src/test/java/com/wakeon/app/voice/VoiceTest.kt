@@ -21,6 +21,22 @@ class KoreanTextTest {
         assertEquals(9, KoreanText.firstNumber("구"))
         assertEquals(4, KoreanText.firstNumber("네 시간 반"))
         assertNull(KoreanText.firstNumber("김치찌개요"))
+        // 시연 대답은 숫자로 넣는다(2026-11-13). 한글 수사와 같은 값
+        assertEquals(3, KoreanText.firstNumber("3."))
+        assertEquals(12, KoreanText.firstNumber("12."))
+        assertEquals(8, KoreanText.firstNumber("8."))
+        assertEquals(13, KoreanText.firstNumber("13."))
+        assertEquals(6, KoreanText.firstNumber("6."))
+    }
+
+    @Test
+    fun `단위 앞 고유어 수`() {
+        assertEquals("세", KoreanText.nativeCounter(3))
+        assertEquals("열두", KoreanText.nativeCounter(12))
+        assertEquals("스무", KoreanText.nativeCounter(20))
+        assertEquals("스물한", KoreanText.nativeCounter(21))
+        assertNull(KoreanText.nativeCounter(0))
+        assertNull(KoreanText.nativeCounter(100))
     }
 }
 
@@ -66,6 +82,12 @@ class QuestionBankTest {
         assertTrue(QuestionBank.judge(p[3], "김치찌개요", memory))
         assertEquals("김치찌개", QuestionBank.memoryCore("김치찌개요"))
         assertTrue(QuestionBank.judge(QuestionBank.recheck[0], "팔.", memory))
+        // 숫자로 들어온 대답도 같은 판정(시연 주입값)
+        assertTrue(QuestionBank.judge(p[0], "3.", memory))
+        assertTrue(QuestionBank.judge(p[1], "12.", memory))
+        assertTrue(QuestionBank.judge(QuestionBank.recheck[0], "8.", memory))
+        assertTrue(QuestionBank.judge(QuestionBank.recheck[1], "13.", memory))
+        assertTrue(QuestionBank.judge(QuestionBank.recheck[2], "6.", memory))
         assertFalse(QuestionBank.judge(QuestionBank.recheck[0], "칠", memory))
     }
 

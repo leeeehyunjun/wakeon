@@ -112,6 +112,8 @@ class PleosSpeechEngine(context: Context, audio: AudioCoordinator) : SpeechEngin
 
     private var queue: List<Line> = emptyList()
     private var index = 0
+    @Volatile
+    private var audioStarted = false
     private var onDone: ((Long) -> Unit)? = null
     private var onError: ((String) -> Unit)? = null
     private val watchdog = Runnable { fail("timeout") }
@@ -121,7 +123,15 @@ class PleosSpeechEngine(context: Context, audio: AudioCoordinator) : SpeechEngin
         override fun onStart() {
             main.post { main.removeCallbacks(watchdog); main.postDelayed(watchdog, partLimitMs()) }
         }
-        override fun onUpdatedRms(rms: Double) = Unit
+        override fun onUpdatedRms(rms: Double) {
+            // 재생 시작 시각 = 이 문장의 첫 음량 알림(소리가 실제로 나기 시작함). 영상 자막을 소리에 맞추는 기준.
+            // onStart는 말하기 요청을 받은 순간(요청 후 약 10ms)에 와서 실제 소리보다 0.1~0.4초 빠르다(2026-11-13 녹화 실측).
+            // 콜백 스레드에서 바로 남겨 메인 스레드 지연이 끼지 않게 한다.
+            if (rms > 0.0 && !audioStarted) {
+                audioStarted = true
+                Log.i(TAG, "tts_play vid=${queue.getOrNull(index)?.id} part=$index engine=pleos rms=${"%.1f".format(rms)}")
+            }
+        }
         override fun onDone() {
             val at = SystemClock.elapsedRealtime()
             main.post { next(at) }
@@ -162,6 +172,7 @@ class PleosSpeechEngine(context: Context, audio: AudioCoordinator) : SpeechEngin
     }
 
     private fun speakCurrent() {
+        audioStarted = false
         main.removeCallbacks(watchdog)
         main.postDelayed(watchdog, partLimitMs() + START_LIMIT_MS)
         try {
@@ -242,6 +253,8 @@ class AndroidSpeechEngine(context: Context, audio: AudioCoordinator) : SpeechEng
 
     private var job = 0L
     private var lastId: String? = null
+    @Volatile
+    private var lines: List<Line> = emptyList()
     private var onDone: ((Long) -> Unit)? = null
     private var onError: ((String) -> Unit)? = null
 
@@ -262,7 +275,11 @@ class AndroidSpeechEngine(context: Context, audio: AudioCoordinator) : SpeechEng
     }
 
     private val progress = object : UtteranceProgressListener() {
-        override fun onStart(utteranceId: String?) = Unit
+        override fun onStart(utteranceId: String?) {
+            // 재생 시작 시각(영상 자막 기준). 문장 사이 0.5초 쉼(gap)은 남기지 않는다.
+            val part = utteranceId?.substringAfterLast('-')?.toIntOrNull() ?: return
+            Log.i(TAG, "tts_play vid=${lines.getOrNull(part)?.id} part=$part engine=android")
+        }
         override fun onDone(utteranceId: String?) {
             val at = SystemClock.elapsedRealtime()
             main.post {
@@ -288,6 +305,7 @@ class AndroidSpeechEngine(context: Context, audio: AudioCoordinator) : SpeechEng
 
     override fun speak(lines: List<Line>, louder: Boolean, onDone: (Long) -> Unit, onError: (String) -> Unit) {
         val my = ++job
+        this.lines = lines
         this.onDone = onDone
         this.onError = onError
         val params = Bundle().apply { putFloat(AndroidTts.Engine.KEY_PARAM_VOLUME, if (louder) LOUD else NORMAL) }

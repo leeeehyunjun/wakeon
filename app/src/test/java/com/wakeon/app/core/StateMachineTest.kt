@@ -22,6 +22,7 @@ import com.wakeon.app.vehicle.Gear
 import com.wakeon.app.vehicle.TurnSignal
 import com.wakeon.app.vehicle.VehicleSignals
 import com.wakeon.app.voice.Line
+import com.wakeon.app.voice.Topic
 import com.wakeon.app.voice.UserIntent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -173,15 +174,18 @@ class StateMachineTest {
         h.m.setTriggerEnabled(TriggerId.C3, false)
 
         // 장면 1~4: S-01 → S-02 → S-01, 기준선 1.0초 확정. 강아지 대답에는 짧은 호응만 하고 다음 문항
+        // 시연은 대답을 숫자로 넣는다("3.", "12.") — 한글 수사("삼.")도 같은 값으로 읽는지는 VoiceTest에서 본다
         h.m.demoReset()
+        // 시연 설정: 주행 중 대화는 체크에서 들은 강아지 줄기부터(점심 줄기 없음, 2026-11-13)
+        h.m.demoTalkFrom(Topic.PET)
         assertEquals(S01, h.state)
         assertEquals("V-02", h.untilListening()?.id)
         h.answer("응, 부산까지.", 1_000)
         assertEquals(S02, h.state)
         assertEquals("V-03", h.untilListening()?.id)
-        h.answer("삼.", 1_000)
+        h.answer("3.", 1_000)
         assertEquals("7 더하기 5는요?", h.untilListening()?.text)
-        h.answer("십이.", 1_000)
+        h.answer("12.", 1_000)
         assertEquals("강아지와 고양이 중에 뭐가 좋아요?", h.untilListening()?.text)
         h.answer("강아지.", 1_000)
         assertEquals("강아지 좋죠. 점심은 뭐 드셨어요?", h.untilListening()?.text)
@@ -201,26 +205,22 @@ class StateMachineTest {
         // 화면은 분 단위로 올려서 보여 준다(17분 59초 → "18분 뒤")
         assertEquals(18L, (h.snap.nextTalkInMs!! + MINUTE_MS - 1) / MINUTE_MS)
 
-        // 연속 2시간 4분(C1) → S-04. 1·2번은 점심 줄기(앱이 묻고 편집에서 자른다)
+        // 장면 6: 연속 2시간 4분(C1) → S-04. 첫 질문이 바로 체크에서 들은 "강아지"로 시작하는 줄기 (1/6)
         h.minute = 23 * 60 + 8
         h.m.demoDriveMinutes(124)
         h.tick(200)
         assertEquals(S04, h.state)
-        assertEquals("점심에 김치찌개 드셨다고 하셨죠. 맛있었어요?", h.untilListening()?.text)
-        h.answer("네, 맛있었어요.", 1_000)
-        assertEquals("다행이에요. 부산 가면 제일 먼저 뭐 드실 거예요?", h.untilListening()?.text)
-        h.answer("돼지국밥이요.", 1_000)
-        assertEquals("돼지국밥 좋죠.", h.fx.lastLines.single().text)
-
-        // 장면 6: 체크에서 들은 "강아지"로 시작하는 줄기 (3/6)
         assertEquals("아까 강아지가 더 좋다고 하셨죠. 키우세요?", h.untilListening()?.text)
-        assertEquals(3, h.snap.questionNo)
+        assertEquals(1, h.snap.questionNo)
+        assertTrue(h.spokenIds().none { it.startsWith("T-FOOD") })
         h.answer("네, 한 마리요.", 1_200)
-        // 장면 7: 인식 결과 2초 표시 → 호응 + 이어지는 질문 (4/6)
+        assertTrue(h.logs.none { it.first == "suspect" }) // 1.2초 ≤ 1.5초
+        // 장면 7: 인식 결과 2초 표시 → 호응 + 이어지는 질문 (2/6)
         assertEquals("네, 한 마리요.", h.snap.heard)
         assertEquals("한 마리 키우시는구나. 이름이 뭐예요?", h.untilListening()?.text)
-        assertEquals(4, h.snap.questionNo)
+        assertEquals(2, h.snap.questionNo)
         h.answer("보리요.", 1_700)
+        assertTrue(h.logs.none { it.first == "suspect" }) // 최근 3개 [1.0, 1.2, 1.7] 중 1.5초 초과는 1개
 
         // 장면 8: 결과 표시 중 브레이크 + 방향지시등 → S-05, 꺼지고 10초 뒤 이어서
         h.vehicle(Gear.D, 84f, brake = true, turn = TurnSignal.RIGHT)
@@ -230,18 +230,20 @@ class StateMachineTest {
         h.tick(10_000)
         assertEquals(S04, h.state)
 
-        // 장면 9: "보리, 이름 예쁘네요. 보리는 몇 살이에요?" (5/6) → 2.8초 → 최근 3개 중 2개 > 1.5초 → S1 → S-06
+        // 장면 9: "보리, 이름 예쁘네요. 보리는 몇 살이에요?" (3/6) → 2.8초 → 최근 3개 [1.2, 1.7, 2.8] 중 2개 > 1.5초 → S1 → S-06
         assertEquals("보리, 이름 예쁘네요. 보리는 몇 살이에요?", h.untilListening()?.text)
-        assertEquals(5, h.snap.questionNo)
-        h.answer("…세 살… 인가?", 2_800)
+        assertEquals(3, h.snap.questionNo)
+        h.answer("…3살… 인가?", 2_800)
         assertEquals(S06, h.state)
+        assertEquals(listOf(1_200L, 1_700L, 2_800L), h.logs.filter { it.first == "talk_q" }.map { it.second["latency_ms"] })
+        assertEquals("S1", h.logs.single { it.first == "suspect" }.second["signal"])
         assertEquals("V-15", h.untilListening()?.id)
 
-        // 장면 10~11: "아니, 괜찮아." → "알겠어요."로 받고 바로 같은 줄기의 다음 질문 (6/6)
+        // 장면 10~11: "아니, 괜찮아." → "알겠어요."로 받고 바로 같은 줄기의 다음 질문 (4/6)
         h.answer("아니, 괜찮아.", 1_500)
         assertEquals(S04, h.state)
         assertEquals("알겠어요. 그럼 보리 얘기 하나만 더요. 보리는 산책 좋아해요?", h.untilListening()?.text)
-        assertEquals(6, h.snap.questionNo)
+        assertEquals(4, h.snap.questionNo)
 
         // 장면 11~12: 무응답 → S-06 "제 말 들리세요?" → 다시 무응답
         h.noAnswer()
@@ -313,10 +315,10 @@ class StateMachineTest {
         assertEquals("12 빼기 4는요?", h.untilListening()?.text)
         assertEquals(listOf("V-50", "Q-R1"), h.fx.lastLines.map { it.id }) // 한 번에 말함
         assertTrue(h.spokenIds().takeLast(3).containsAll(listOf("V-34", "V-50")))
-        h.answer("팔.", 1_100)
-        assertEquals("팔.", h.snap.heard) // 다음 문항 전까지 들은 대답을 보여 줌
-        h.answer("십삼", 1_000)
-        h.answer("육", 1_000)
+        h.answer("8.", 1_100)
+        assertEquals("8.", h.snap.heard) // 다음 문항 전까지 들은 대답을 숫자 그대로 보여 줌
+        h.answer("13.", 1_000)
+        h.answer("6.", 1_000)
         assertEquals(S16, h.state)
         assertEquals("다음 쉼터는 32km 앞이에요. 졸리면 바로 쉬세요.", h.fx.lastLines.single().text)
         assertEquals(SessionSummary(rests = 1, restMinutes = h.snap.summary.restMinutes, warns = 1), h.snap.summary)

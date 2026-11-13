@@ -16,6 +16,7 @@ import com.wakeon.app.core.Sound
 import com.wakeon.app.core.TriggerId
 import com.wakeon.app.core.WakeonSnapshot
 import com.wakeon.app.core.WakeonStateMachine
+import com.wakeon.app.voice.Topic
 import com.wakeon.app.voice.UserIntent
 import com.wakeon.app.core.WallClock
 import com.wakeon.app.demo.DemoAnswers
@@ -225,6 +226,8 @@ class WakeonRuntime(context: Context) {
         // 트리거 토글: 시안 W-02처럼 C3(70km/h 10분)를 끈 상태로 시연할 때 --ez c3 false
         e.bool("c2")?.let { machine.setTriggerEnabled(TriggerId.C2, it) }
         e.bool("c3")?.let { machine.setTriggerEnabled(TriggerId.C3, it) }
+        // 대화 첫 주제: 시연은 --es talkFrom PET (점심 줄기 없이 강아지 질문부터, 2026-11-13)
+        e.string("talkFrom")?.let { t -> Topic.entries.firstOrNull { it.name == t.trim().uppercase() }?.let { machine.demoTalkFrom(it) } }
 
         e.string("gear")?.let { g -> parseGear(g)?.let { demoVehicle.gear.value = it } }
         e.float("speed")?.let { demoVehicle.speedKmh.value = it }

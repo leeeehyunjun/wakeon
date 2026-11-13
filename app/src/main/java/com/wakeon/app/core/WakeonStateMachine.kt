@@ -36,6 +36,7 @@ import com.wakeon.app.voice.QuestionBank
 import com.wakeon.app.voice.QuestionType
 import com.wakeon.app.voice.Slot
 import com.wakeon.app.voice.TalkStep
+import com.wakeon.app.voice.Topic
 import com.wakeon.app.voice.UserIntent
 import com.wakeon.app.voice.VoiceLines
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -337,7 +338,16 @@ class WakeonStateMachine(
         log("demo_rest_s", "s" to seconds)
     }
 
-    /** 세션·기준선·카운터 초기화, S-01로. 시연 설정(배속·휴식 길이)은 그대로 둔다. */
+    /**
+     * 시연: 주행 중 대화의 첫 주제를 정한다(예: PET → 첫 질문이 "아까 강아지가 더 좋다고 하셨죠. 키우세요?").
+     * 시연 설정이라 [demoReset] 뒤에도 유지된다. 기본은 음식(점심) 줄기부터.
+     */
+    fun demoTalkFrom(topic: Topic) {
+        planner.startFrom(topic)
+        log("demo_talk_from", "topic" to topic.name)
+    }
+
+    /** 세션·기준선·카운터 초기화, S-01로. 시연 설정(배속·휴식 길이·첫 주제)은 그대로 둔다. */
     fun demoReset() {
         cancelVoice()
         timers.clear()

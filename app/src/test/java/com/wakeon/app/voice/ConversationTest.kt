@@ -43,6 +43,11 @@ class ConversationTest {
         assertEquals("세 살이면 한창 뛰어놀 때죠. 보리는 산책 좋아해요?", say(p, "…세 살… 인가?").also(::check))
         assertEquals("세 살", memory[Slot.PET_AGE])
         assertEquals("보리", p.subject)
+        // 숫자로 들은 나이도 앱은 "세 살"로 되받는다(화면·소리 같음)
+        val (p2, _) = plannerAt(Topic.PET, mutableMapOf(Slot.PET_PREF to "강아지"))
+        say(p2, "네, 한 마리요.")
+        say(p2, "보리요.")
+        assertEquals("세 살이면 한창 뛰어놀 때죠. 보리는 산책 좋아해요?", say(p2, "…3살… 인가?").also(::check))
         val last = p.onAnswer("네, 좋아해요.")
         assertEquals("좋겠네요.", last.ack)
         assertNull("4턴으로 줄기 끝", last.question)
@@ -100,13 +105,27 @@ class ConversationTest {
     }
 
     @Test
+    fun `시연 첫 주제 - 반려동물부터 시작하고 초기화 뒤에도 유지`() {
+        val memory = mutableMapOf(Slot.PET_PREF to "강아지", Slot.LUNCH to "김치찌개")
+        val p = ConversationPlanner(memory)
+        assertEquals("T-FOOD-1", p.startNextThread().id) // 기본은 점심 줄기부터
+        p.startFrom(Topic.PET)
+        p.reset()
+        assertEquals("아까 강아지가 더 좋다고 하셨죠. 키우세요?", p.startNextThread().text)
+        p.dropThread()
+        assertEquals(Topic.DESTINATION, p.startNextThread().let { p.topic })
+    }
+
+    @Test
     fun `대답에서 슬롯 꺼내기`() {
         assertEquals("부산", Answer.destination("응, 부산까지."))
         assertEquals("한 마리", Answer.count("네, 한 마리요."))
         assertEquals("보리", Answer.name("이름은 보리예요"))
         assertEquals("보리", Answer.name("보리라고 해요"))
         assertEquals("세 살", Answer.age("…세 살… 인가?"))
-        assertEquals("3살", Answer.age("3살이요"))
+        assertEquals("세 살", Answer.age("…3살… 인가?"))
+        assertEquals("세 살", Answer.age("3살이요"))
+        assertEquals("열두 살", Answer.age("12살"))
         assertNull(Answer.name("몰라요"))
         assertTrue(Answer.isNo("아니요, 안 키워요."))
         assertTrue(Answer.isYes("네, 한 마리요."))

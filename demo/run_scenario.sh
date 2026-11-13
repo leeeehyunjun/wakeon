@@ -156,9 +156,10 @@ fi
 # ════════════════════════════════════════ 장면 1~4 · 출발 전 (가로 창)
 scene 1 W-02 "홈 · 출발 전"
 clear_log
-b --ez reset true --es clock 21:04 --es gear P --ei speed 0 --ef timeScale 60 --ei restSec 30 --ez c3 false
+# talkFrom PET: 주행 중 첫 질문이 바로 강아지 줄기(점심 줄기 없음). 대답은 숫자로 넣는다(화면·자막에 "3." 그대로)
+b --ez reset true --es clock 21:04 --es gear P --ei speed 0 --ef timeScale 60 --ei restSec 30 --ez c3 false --es talkFrom PET
 car Park 0
-a "응, 부산까지." 1000; a "삼." 1000; a "십이." 1000; a "강아지." 1000; a "김치찌개요" 1000
+a "응, 부산까지." 1000; a "3." 1000; a "12." 1000; a "강아지." 1000; a "김치찌개요" 1000
 wait_log "tts_start vid=V-03" 30
 scene 2 W-03 "출발 전 체크 1/4 · 졸린 정도"
 wait_log "tts_start vid=Q-P1" 30
@@ -177,22 +178,23 @@ car Drive 98
 wait_log "screen W-04" 20
 hold 5
 clear_log
-a "네, 맛있었어요." 1000; a "돼지국밥이요." 1000; a "네, 한 마리요." 1200; a "보리요." 1700
+a "네, 한 마리요." 1200; a "보리요." 1700
 b --ei driveMin 124 --ei speed 101 --es clock 23:08
 car Drive 101
-echo "  (장면 6 앞: 점심 줄기 2문항 — 편집에서 줄임)"
-wait_log "tts_start vid=T-PET-1" 90
-scene 6 W-05 "대화 3/6 · 강아지 줄기"
+wait_log "tts_start vid=T-PET-1" 30
+scene 6 W-05 "대화 1/6 · 강아지 줄기"
 wait_log "tts_start vid=T-PET-2" 30
 scene 7 W-05b "대답 인식 → 이름"
 wait_log "talk_q id=T-PET-2" 30
 scene 8 W-06 "대화 멈춤 · 브레이크 + 방향지시등"
 b --ez brake true --es turn R --ei speed 84 --es clock 23:09
-car Drive 84 40 BlinkRight
+# 시스템 방향지시등은 켜지 않는다: 켜면 에뮬레이터가 측면 카메라 창(시스템 화면)을 앱 위에 띄운다(2026-11-13 영상 38초).
+# 앱의 "방향지시등" 칩은 시연 신호(--es turn R)로 켠다(시연 값이 시스템 값보다 앞선다).
+car Drive 84 40
 wait_log "screen W-06" 10
 hold 4
 clear_log
-a "…세 살… 인가?" 2800
+a "…3살… 인가?" 2800
 b --ez brake false --es turn OFF --ei speed 99 --es clock 23:10
 car Drive 99
 wait_log "tts_start vid=T-PET-3" 30
@@ -248,7 +250,7 @@ b --es clock 23:40
 wait_log "screen W-15" 40
 scene 20 W-15 "재출발 체크 (2/3·3/3은 편집에서 줄임)"
 b --es clock 23:41
-a "팔." 1100; a "십삼." 1000; a "육." 1000
+a "8." 1100; a "13." 1000; a "6." 1000
 wait_log "tts_start vid=V-52" 90
 scene 21 W-16 "출발 · 다음 쉼터 32km"
 b --es clock 23:42

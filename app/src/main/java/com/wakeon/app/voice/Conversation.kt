@@ -29,6 +29,8 @@ data class TalkStep(val ack: String?, val question: Question?)
 /** 주제별 줄기 템플릿과 갈래. 질문 id는 `T-주제-번호`. */
 class ConversationPlanner(private val memory: MutableMap<String, String>) {
     private val order = listOf(Topic.FOOD, Topic.PET, Topic.DESTINATION, Topic.FAMILY, Topic.MUSIC)
+    /** 첫 주제의 순서 번호. 시연에서는 반려동물부터 시작한다([startFrom], docs/DECISIONS.md 2026-11-13). */
+    private var firstIndex = 0
     private var topicCursor = 0
 
     var topic: Topic? = null
@@ -65,8 +67,14 @@ class ConversationPlanner(private val memory: MutableMap<String, String>) {
     }
 
     fun reset() {
-        topicCursor = 0
+        topicCursor = firstIndex
         dropThread()
+    }
+
+    /** 다음 줄기를 [t]부터 차례로 시작한다. [reset] 뒤에도 유지된다. */
+    fun startFrom(t: Topic) {
+        firstIndex = order.indexOf(t)
+        topicCursor = firstIndex
     }
 
     // ════════════════════════════════════════ 줄기 시작
@@ -241,11 +249,16 @@ object Answer {
     fun count(text: String): String? =
         Regex("(한|두|세|네|다섯|여섯|일곱|여덟|아홉|열|\\d+)\\s*마리").find(KoreanText.normalize(text))?.let { "${it.groupValues[1]} 마리" }
 
-    /** "…세 살… 인가?" → "세 살", "3살" → "3살" */
+    /**
+     * "…세 살… 인가?" → "세 살", "…3살… 인가?" → "세 살".
+     * 앱이 되받아 말하는 값이라 숫자는 읽는 말(고유어 수)로 바꾼다. 화면의 인식 결과는 들은 그대로(숫자) 보여 준다.
+     */
     fun age(text: String): String? {
         Regex("(\\S+)\\s*살").find(KoreanText.normalize(text))?.let { m ->
             val n = m.groupValues[1]
-            if (KoreanText.firstNumber(n) != null) return if (n.any { it.isDigit() }) "${n}살" else "$n 살"
+            val value = KoreanText.firstNumber(n) ?: return null
+            if (!n.any { it.isDigit() }) return "$n 살"
+            return KoreanText.nativeCounter(value)?.let { "$it 살" } ?: "${n}살"
         }
         return null
     }

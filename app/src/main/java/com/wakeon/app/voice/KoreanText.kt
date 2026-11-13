@@ -50,6 +50,15 @@ object KoreanText {
 
     private fun parseWord(word: String): Int? = parseSino(word) ?: parseNative(word)
 
+    /** 단위 앞에서 읽는 고유어 수(1~99): 3 → "세", 12 → "열두", 20 → "스무", 21 → "스물한". 범위 밖이면 null. */
+    fun nativeCounter(n: Int): String? {
+        if (n !in 1..99) return null
+        val ones = listOf("", "한", "두", "세", "네", "다섯", "여섯", "일곱", "여덟", "아홉")
+        val tens = listOf("", "열", "스물", "서른", "마흔", "쉰", "예순", "일흔", "여든", "아흔")
+        if (n == 20) return "스무"
+        return tens[n / 10] + ones[n % 10]
+    }
+
     /** 영~구, 십, 백 조합: 삼, 십이, 이십삼, 백. */
     private fun parseSino(word: String): Int? {
         if (word.isEmpty() || word.any { it !in sinoDigits && it != '십' && it != '백' }) return null

@@ -77,10 +77,10 @@ fi
 
 echo "장면 1~4 · 출발 전 (가로 창)"
 clear_log
-b --ez reset true --es clock 21:04 --es gear P --ei speed 0 --ef timeScale 60 --ei restSec 30 --ez c3 false
+b --ez reset true --es clock 21:04 --es gear P --ei speed 0 --ef timeScale 60 --ei restSec 30 --ez c3 false --es talkFrom FOOD
 wait_log "tts_start vid=V-02" 30 && sleep 1.5 && shot W-02
 # 대답은 묻기 전에 미리 넣는다(시연 모드는 듣기 창이 열릴 때 대답이 없으면 5초 무응답으로 처리).
-clear_log; a "응, 부산까지." 1000; a "삼." 1000; a "십이." 1000; a "강아지." 1000; a "김치찌개요" 1000
+clear_log; a "응, 부산까지." 1000; a "3." 1000; a "12." 1000; a "강아지." 1000; a "김치찌개요" 1000
 wait_log "tts_start vid=V-03" 30 && sleep 1.5 && shot W-03
 wait_log "precheck_q idx=1" 30 && sleep 0.2 && shot W-03_heard
 wait_log "tts_start vid=Q-P1" 30 && sleep 1 && shot W-03_quiz
@@ -103,7 +103,7 @@ clear_log; a "돼지국밥이요." 1000; a "네, 한 마리요." 1200; a "보리
 wait_log "talk_q.*latency_ms=1700" 90 && b --ez brake true --es turn R --ei speed 84 --es clock 23:09
 wait_log "screen W-06" 10 && sleep 0.8 && shot W-06
 clear_log; b --ez brake false --es turn OFF --ei speed 99 --es clock 23:10
-a "…세 살… 인가?" 2800
+a "…3살… 인가?" 2800
 wait_log "tts_start vid=V-15" 60 && sleep 1.5 && shot W-07
 clear_log; a "아니, 괜찮아." 1500; a "__none__" 0; a "__none__" 0
 wait_log "tts_start vid=T-PET-4" 30 && sleep 1.5 && shot W-05_long
@@ -125,7 +125,7 @@ wait_log "screen W-13" 30 && sleep 3 && shot W-13
 wait_log "screen W-13b" 60 && sleep 1 && shot W-13b
 clear_log; a "으음… 일어났어." 2000
 wait_log "tts_start vid=Q-R1" 60 && sleep 1.5 && shot W-15
-clear_log; a "팔." 1100; a "십삼." 1000; a "육." 1000
+clear_log; a "8." 1100; a "13." 1000; a "6." 1000
 wait_log "tts_start vid=V-52" 60 && sleep 1.5 && shot W-16
 
 echo "장면 22 · 다시 주행 (세로 창)"

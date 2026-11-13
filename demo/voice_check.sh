@@ -43,8 +43,8 @@ if [ "$1" = "--record" ]; then
 fi
 
 echo "1) 출발 전 체크 — 질문 4개, '강아지 좋죠.', '준비됐어요…' (약 35초)"
-b --ez reset true --es clock 21:04 --es gear P --ei speed 0 --ef timeScale 60 --ez c3 false
-a "응, 부산까지." 1000; a "삼." 1000; a "십이." 1000; a "강아지." 1000; a "김치찌개요" 1000
+b --ez reset true --es clock 21:04 --es gear P --ei speed 0 --ef timeScale 60 --ez c3 false --es talkFrom FOOD
+a "응, 부산까지." 1000; a "3." 1000; a "12." 1000; a "강아지." 1000; a "김치찌개요" 1000
 wait_log "tts_spoken vid=V-06" 90 && echo "   ✓ (응답 시간 기록)" && "$ADB" logcat -d -s 'Wakeon:*' | grep -o "precheck_q idx=[0-9] latency_ms=[0-9]* correct=[a-z]*" | sed 's/^/     /'
 
 echo "2) 대화 — 점심 줄기 → 강아지 줄기 → '혹시 졸리세요?' → '아니, 괜찮아.' → '알겠어요. 그럼 보리 얘기 하나만 더요…' (약 60초)"
@@ -52,7 +52,7 @@ b --es gear D --ei speed 98 --ef routeKm 226 --ei driveMin 102 --es clock 22:46
 sleep 2
 b --ei driveMin 124 --es clock 23:08
 a "네, 맛있었어요." 1000; a "돼지국밥이요." 1000
-a "네, 한 마리요." 1200; a "보리요." 1700; a "…세 살… 인가?" 2800
+a "네, 한 마리요." 1200; a "보리요." 1700; a "…3살… 인가?" 2800
 a "아니, 괜찮아." 1500
 a "__none__" 0; a "__none__" 0   # "보리는 산책 좋아해요?"와 "제 말 들리세요?"에 대답 없음
 wait_log "tts_start vid=T-PET-4" 120 && echo "   ✓"
