@@ -67,7 +67,7 @@ class FallbackSpeaker(
                 onError = { reason ->
                     main.post {
                         if (myJob != job) return@post
-                        Log.w(TAG, "tts_error engine=${engine.name} reason=$reason → 다음 엔진")
+                        Log.w(TAG, "tts_error engine=${engine.name} reason=$reason → 이번 문장은 다음 엔진, 다음 문장은 다시 처음 엔진부터")
                         attempt(nextIndex)
                     }
                 },
@@ -185,11 +185,18 @@ class PleosSpeechEngine(context: Context, audio: AudioCoordinator) : SpeechEngin
         done?.invoke(endedAt)
     }
 
+    /**
+     * 이번 발화만 실패로 넘긴다. 엔진은 끄지 않고 멈춘 뒤 다음 발화에서 다시 쓴다.
+     * (2026-11-13 release 시험: 끝 알림이 한 번 오지 않아 시간 초과 → 엔진을 꺼 버려 남은 시연 내내 말이 없었다.)
+     */
     private fun fail(reason: String) {
         val err = onError ?: return
         main.removeCallbacks(watchdog)
         clear()
-        ready = false
+        try {
+            tts.stop()
+        } catch (_: Exception) {
+        }
         err(reason)
     }
 

@@ -1,8 +1,16 @@
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+}
+
+// 서명 키 정보는 저장소 밖에 둔다: 저장소 루트의 keystore.properties(.gitignore)에 이현준이 직접 쓴다(CLAUDE.md 1장).
+// storeFile=키 파일 경로(~ 가능), storePassword, keyAlias, keyPassword
+val keystoreProps = Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
 }
 
 android {
@@ -19,9 +27,22 @@ android {
         versionName = "1.0"
     }
 
+    signingConfigs {
+        if (!keystoreProps.isEmpty) {
+            create("release") {
+                storeFile = file(keystoreProps.getProperty("storeFile").replaceFirst("~", System.getProperty("user.home")))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // 1차는 안정성 우선: 코드 줄이기·난독화 없음(BUILD 단계 7)
             isMinifyEnabled = false
+            if (!keystoreProps.isEmpty) signingConfig = signingConfigs.getByName("release")
         }
     }
 

@@ -327,8 +327,10 @@ private val naviEventListener = object : NaviHelperEventListener {
 | `pleos.car.permission.CAR_DRIVE`, `CAR_LIGHTS`, `NAVI_ROUTE`, `NAVI_ROUTE_SEARCH` | 자동 허용 |
 | `android.car.permission.CAR_POWERTRAIN` | 자동 허용 |
 | `ai.pleos.playground.service.vehicle.VEHICLE_BINDING` (SDK가 추가) | 자동 허용 |
-| `android.car.permission.CAR_SPEED` | **거부 상태** → 앱이 실행 중 허락을 요청해야 함(단계 3) |
-| `android.permission.RECORD_AUDIO` | **거부 상태** → 앱이 실행 중 허락을 요청해야 함(단계 4) |
+| `android.car.permission.CAR_SPEED` | **거부 상태** → W-01 "동의하고 시작"을 누르면 앱이 묻는다(단계 7). 이 에뮬레이터는 "위치 정보" 권한 창으로 묻는다 |
+| `android.permission.RECORD_AUDIO` | **거부 상태** → 같은 때 "오디오를 녹음" 권한 창으로 묻는다(단계 7) |
+
+허락하지 않아도 동의는 마친다(마이크가 없으면 무응답으로, 속도가 없으면 기어만 읽는다). release APK를 새로 설치해 확인했다: 권한 창 2개 → 허용 → `vehicle speed_subscribed=true` → W-02.
 
 시연 신호 수신기는 `android.permission.DUMP`를 가진 보낸 쪽만 받는다. adb 셸은 이 권한이 있어 `am broadcast`가 그대로 통한다.
 
@@ -413,7 +415,7 @@ stt.stop()
 마이크 권한이 없거나 인식 엔진이 없으면 "말소리 없음"과 같게 처리한다(듣기 창만큼 기다린 뒤 무응답). 말소리는 있었는데 글자가 안 나온 경우만 인식 실패다(SPEC T10).
 
 에뮬레이터에서 마이크로 직접 말해 보려면: 에뮬레이터 옆 도구 막대 ⋯ → Microphone → "Virtual microphone uses host audio input" 켜기, 그리고
-`adb shell pm grant --user current com.wakeon.app android.permission.RECORD_AUDIO` (단계 5의 동의 화면이 생기면 앱이 직접 허락을 요청한다).
+`adb shell pm grant --user current com.wakeon.app android.permission.RECORD_AUDIO` (동의 화면에서 이미 허락했으면 필요 없다).
 
 ---
 

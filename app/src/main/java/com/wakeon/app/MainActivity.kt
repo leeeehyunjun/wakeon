@@ -1,11 +1,14 @@
 package com.wakeon.app
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
@@ -26,10 +29,24 @@ const val TAG = "Wakeon"
  * 앱 창 하나. 화면은 상태 머신의 스냅샷만 보고 그린다(ui/screens). 시연용 버튼은 두지 않는다.
  */
 class MainActivity : ComponentActivity() {
+    private val runtime by lazy { WakeonApp.runtime(this) }
+
+    /** 동의 화면에서 허락을 받은 뒤(허락하지 않아도) 동의를 마친다. 마이크가 없으면 무응답, 속도가 없으면 기어만 읽는다. */
+    private val permissionRequest = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+        Log.i(TAG, "permissions " + result.entries.joinToString(" ") { "${it.key.substringAfterLast('.')}=${it.value}" })
+        runtime.realVehicle.subscribeSpeed()
+        runtime.consent()
+    }
+
+    /** W-01 "동의하고 시작": 아직 허락받지 않은 실행 중 권한(마이크·속도)을 먼저 묻는다. */
+    private fun consentWithPermissions() {
+        val missing = RUNTIME_PERMISSIONS.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
+        if (missing.isEmpty()) runtime.consent() else permissionRequest.launch(missing.toTypedArray())
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val runtime = WakeonApp.runtime(this)
-        val actions = RuntimeActions(runtime)
+        val actions = RuntimeActions(runtime, ::consentWithPermissions)
         setContent {
             val snapshot by runtime.snapshot.collectAsStateWithLifecycle()
             val screen = screenOf(snapshot)
@@ -62,8 +79,11 @@ class MainActivity : ComponentActivity() {
         }
 }
 
-private class RuntimeActions(private val runtime: WakeonRuntime) : WakeonActions {
-    override fun consent() = runtime.consent()
+/** 실행 중에 허락받는 권한. 나머지(Pleos 권한 등)는 설치할 때 허락된다(PLEOS_NOTES 7장). */
+private val RUNTIME_PERMISSIONS = listOf(Manifest.permission.RECORD_AUDIO, "android.car.permission.CAR_SPEED")
+
+private class RuntimeActions(private val runtime: WakeonRuntime, private val onConsent: () -> Unit) : WakeonActions {
+    override fun consent() = onConsent()
     override fun startPrecheck() = runtime.startPrecheck()
     override fun skipPrecheck() = runtime.skipPrecheck()
     override fun tap(intent: UserIntent) = runtime.tap(intent)
