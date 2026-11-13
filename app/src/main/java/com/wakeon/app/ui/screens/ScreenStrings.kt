@@ -83,7 +83,6 @@ object ScreenStrings {
     const val PLUS_5 = "+  5분"
     const val WAKE_NOW = "지금 일어나기"
     const val CHIP_ALARM_SLOW = "알람 천천히 커짐"
-    const val CHIP_PREWARN = "1분 전 미리 알림"
     const val CHIP_WINDOW = "창문 조금 열기"
     const val CHIP_ALARM_MAX = "알람 3단계까지"
     fun restDone(min: Int) = "${min}분 휴식 완료"
@@ -107,7 +106,7 @@ object ScreenStrings {
         CONSENT_TITLE, CONSENT_MUST_KNOW, CONSENT_NOTICE, CONSENT_START, HOME_DETAIL, START_CHECK, SKIP,
         TRIGGER_C1, TRIGGER_C2, TRIGGER_C3, MEASURING, SELECT, MEASURED, STAT_KSS, STAT_CORRECT, STAT_SPEED,
         HINT_GEAR_D, START_REST, AUTO_START, ROUTINE, COFFEE_TITLE, COFFEE_BODY, POINT_TITLE, POINT_BODY, POINT_NOTE, restOf(15),
-        PLUS_5, WAKE_NOW, CHIP_ALARM_SLOW, CHIP_PREWARN, CHIP_WINDOW, CHIP_ALARM_MAX, restDone(15), HINT_RECHECK,
+        PLUS_5, WAKE_NOW, CHIP_ALARM_SLOW, CHIP_WINDOW, CHIP_ALARM_MAX, restDone(15), HINT_RECHECK,
         STAT_RESTS, STAT_REST_TIME, STAT_WARNS, HINT_BACK_TO_DRIVE,
     ) + PERMISSIONS.flatMap { listOf(it.first, it.second) } + (1..9).mapNotNull { kssName(it) }
 }

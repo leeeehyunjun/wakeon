@@ -458,9 +458,9 @@ fun W13Rest(s: WakeonSnapshot, actions: WakeonActions) {
             }
         },
         chips = {
-            RestChip(R.drawable.wk_ic_light, true, 37f, 49f, ScreenStrings.CHIP_ALARM_SLOW, active = true)
-            RestChip(R.drawable.wk_ic_timer, false, 81.677f, 81.677f, ScreenStrings.CHIP_PREWARN, active = false)
-            RestChip(R.drawable.wk_ic_air, false, 81.677f, 81.677f, ScreenStrings.CHIP_WINDOW, active = false)
+            // 칩 2개(2026-11-14): "1분 전 미리 알림"은 기능을 지워 뺐다. "창문 조금 열기"가 F10 3번의 화면 한 줄 환기 안내다.
+            RestChip(R.drawable.wk_ic_light, true, 37f, 49f, ScreenStrings.CHIP_ALARM_SLOW)
+            RestChip(R.drawable.wk_ic_air, false, 81.677f, 81.677f, ScreenStrings.CHIP_WINDOW)
         },
     )
 }
@@ -477,8 +477,8 @@ fun W13bAlarm(s: WakeonSnapshot, actions: WakeonActions) {
             }
         },
         chips = {
-            RestChip(R.drawable.wk_ic_bell, true, 44f, 44f, ScreenStrings.CHIP_ALARM_MAX, active = true)
-            RestChip(R.drawable.wk_ic_timer, false, 81.677f, 81.677f, ScreenStrings.restDone(restMinutes(s)), active = false)
+            RestChip(R.drawable.wk_ic_bell, true, 44f, 44f, ScreenStrings.CHIP_ALARM_MAX)
+            RestChip(R.drawable.wk_ic_timer, false, 81.677f, 81.677f, ScreenStrings.restDone(restMinutes(s)))
         },
     )
 }

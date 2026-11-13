@@ -88,8 +88,6 @@ data class WakeonConfig(
     // ── 휴식 (F10)
     /** rest.default_min */
     val restDefaultMin: Int = 15,
-    /** 종료 전 "등받이를 세워 주세요" (A10) */
-    val restPrewarnS: Int = 60,
     /** "5분만" 연장: 한 번에 5분, 최대 3회. 4회째는 V-36 (F10 7번, AC-10.4) */
     val restExtendMin: Int = 5,
     val restExtendMax: Int = 3,
@@ -101,7 +99,7 @@ data class WakeonConfig(
     /** recheck.ratio */
     val recheckRatio: Double = 1.5,
     val recheckQuestions: Int = 3,
-    /** "등받이를 세워 주세요" 뒤 질문 시작까지 */
+    /** 일어난 뒤 재출발 질문 시작까지(V-35 "등받이를 세워 주세요" 뒤 등받이를 세울 시간) */
     val recheckBackrestWaitS: Int = 5,
 
     // ── 출발 전 체크 (F2)
@@ -119,8 +117,6 @@ data class WakeonConfig(
     // ── 시연 (F10 데모)
     /** demo.rest_s */
     val demoRestS: Int = 30,
-    /** 시연 휴식에서 "1분 전" 안내를 이만큼 전으로 */
-    val demoRestPrewarnS: Int = 5,
 ) {
     companion object {
         const val MINUTE_MS = 60_000L

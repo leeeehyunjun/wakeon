@@ -6,7 +6,6 @@ import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -321,42 +320,27 @@ fun GlowNumber(text: String, modifier: Modifier = Modifier) {
 }
 
 /**
- * 휴식 칩 (132:1819): 둥근 알약 안에 아이콘 · 글자 · 오른쪽 작은 표시.
- * 시안의 빛 반사(하드라이트·컬러닷지 겹)는 오른쪽 끝을 밝게 하는 그라데이션으로 줄여 그린다.
+ * 휴식 상태 칩 (132:1819): 둥근 알약 안에 아이콘 · 글자. 누를 수 없는 상태 표시다(2026-11-14 PM 결정).
+ * 시안의 토글처럼 보이는 꾸밈(그림자, 빛 반사, 흰 테두리, 오른쪽 스위치 손잡이 표시)은 눌리는 것처럼 보여서 뺐다(DESIGN_DIFF W-13).
  */
 @Composable
-fun RestChip(@DrawableRes icon: Int, iconInCircle: Boolean, iconW: Float, iconH: Float, text: String, active: Boolean, modifier: Modifier = Modifier) {
-    val shape = RoundedCornerShape(72.28.dp)
+fun RestChip(@DrawableRes icon: Int, iconInCircle: Boolean, iconW: Float, iconH: Float, text: String, modifier: Modifier = Modifier) {
     Row(
         modifier
-            .shadow(7.5.dp, shape, ambientColor = Color(0x38000000), spotColor = Color(0x38000000))
-            .clip(shape)
+            .clip(RoundedCornerShape(72.28.dp))
             .background(WakeonColors.Primary800)
-            .background(
-                Brush.horizontalGradient(
-                    0.8376f to Color(0x33111111), 0.9332f to Color(0x33FFFFFF), 1f to Color(0x33FFFFFF),
-                ),
-            )
-            .then(if (active) Modifier.border(1.dp, WakeonColors.White, shape) else Modifier)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(46.dp),
+            .padding(start = 16.dp, end = 32.dp, top = 12.dp, bottom = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (iconInCircle) {
-                Box(Modifier.size(81.677.dp).background(WakeonColors.Black, CircleShape), contentAlignment = Alignment.Center) {
-                    Image(painterResource(icon), null, Modifier.size(iconW.dp, iconH.dp))
-                }
-            } else {
+        if (iconInCircle) {
+            Box(Modifier.size(81.677.dp).background(WakeonColors.Black, CircleShape), contentAlignment = Alignment.Center) {
                 Image(painterResource(icon), null, Modifier.size(iconW.dp, iconH.dp))
             }
-            Text(text, style = WakeonType.caption4, color = WakeonColors.White, maxLines = 1)
-        }
-        if (active) {
-            Image(painterResource(R.drawable.wk_chip_handle), null, Modifier.size(8.218.dp).rotate(-1.53f))
         } else {
-            Image(painterResource(R.drawable.wk_chip_union), null, Modifier.size(33.797.dp, 8.218.dp))
+            Image(painterResource(icon), null, Modifier.size(iconW.dp, iconH.dp))
         }
+        Text(text, style = WakeonType.caption4, color = WakeonColors.White, maxLines = 1)
     }
 }
 

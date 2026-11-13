@@ -296,7 +296,7 @@ class StateMachineTest {
     fun `시연 23장면 경로 - 출발 전 체크부터 재출발까지 한 번에 돈다`() {
         val h = toRest()
 
-        // 장면 18~19: 30초 휴식 → 5초 전 "등받이를 세워 주세요" → 알람 + V-35 → "일어났어" → S-14
+        // 장면 18~19: 30초 휴식(종료 전 미리 알림 없음, 2026-11-14) → 알람 + V-35 → "일어났어" → S-14
         // 시연 배속(60배)에서는 알람 간격 30초가 0.5초가 된다. 그래도 1단계 소리와 V-35가 끊기지 않아야 한다(2026-11-13).
         while (!h.fx.sounds.contains(Sound.Alarm(1))) {
             h.finishSpeech()
@@ -313,10 +313,10 @@ class StateMachineTest {
         assertTrue(h.fx.sounds.contains(Sound.Alarm(1)))
         assertEquals(S14, h.state)
 
-        // 장면 20: 등받이 안내 → V-50 → 3문항 → 평균 ≤ B×1.5 → S-16
+        // 장면 20: (등받이 안내는 V-35에서 이미 함) 5초 뒤 V-50 → 3문항 → 평균 ≤ B×1.5 → S-16
         assertEquals("12 빼기 4는요?", h.untilListening()?.text)
         assertEquals(listOf("V-50", "Q-R1"), h.fx.lastLines.map { it.id }) // 한 번에 말함
-        assertTrue(h.spokenIds().takeLast(3).containsAll(listOf("V-34", "V-50")))
+        assertEquals(listOf("V-35", "V-50", "Q-R1"), h.spokenIds().takeLast(3))
         h.answer("8.", 1_100)
         assertEquals("8.", h.snap.heard) // 다음 문항 전까지 들은 대답을 숫자 그대로 보여 줌
         h.answer("13.", 1_000)
@@ -373,6 +373,43 @@ class StateMachineTest {
         assertEquals(total, h.snap.restTotalMs)
         assertEquals(1, h.spokenIds().count { it == "V-36" })
         assertEquals(1, h.logs.count { it.first == "rest_completed" })
+    }
+
+    @Test
+    fun `휴식 종료 전 미리 알림은 없고 등받이를 세워 주세요는 기상 알람 V-35에서만 말한다`() {
+        val h = toRest()
+        while (!h.fx.sounds.contains(Sound.Alarm(1))) {
+            h.finishSpeech()
+            h.tick(200)
+        }
+        // 휴식 시작 대사(V-34 "등받이를 뒤로 젖히고 쉬세요." + V-33) 뒤 알람까지 아무 말도 하지 않는다(2026-11-14 PM 결정)
+        assertEquals(listOf("V-34", "V-33"), h.spokenIds().takeLast(2))
+        h.finishSound()
+        assertEquals("V-35", h.fx.lastLines.single().id)
+        h.answer("으음… 일어났어.", 2_000)
+        assertEquals(S14, h.state)
+        assertEquals("12 빼기 4는요?", h.untilListening()?.text)
+        assertEquals(listOf("V-35"), h.fx.spoken.filter { it.text.contains("등받이를 세워") }.map { it.id })
+    }
+
+    @Test
+    fun `알람은 3단계까지 커지고 반응이 없으면 3단계를 계속 울린다`() {
+        val h = toRest()
+        while (!h.fx.sounds.contains(Sound.Alarm(1))) {
+            h.finishSpeech()
+            h.tick(200)
+        }
+        // 대답 없이 시간을 보낸다(시연 배속 60배: 단계 간격 30초 = 0.5초)
+        repeat(60) {
+            h.finishSpeech()
+            h.finishSound()
+            h.tick(200)
+        }
+        val levels = h.fx.sounds.filterIsInstance<Sound.Alarm>().map { it.level }
+        assertEquals(listOf(1, 2, 3), levels.take(3))
+        assertTrue("3단계 유지: $levels", levels.size >= 6 && levels.drop(2).all { it == 3 })
+        assertEquals(3, h.snap.alarmLevel)
+        assertEquals(S12, h.state)
     }
 
     @Test

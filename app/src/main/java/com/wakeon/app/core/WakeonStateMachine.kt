@@ -943,10 +943,11 @@ class WakeonStateMachine(
     private fun restActualMs(nominalMs: Long): Long =
         restSecOverride?.let { it * SECOND_MS * nominalMs / (config.restDefaultMin * MINUTE_MS) } ?: scaled(nominalMs)
 
-    /** 지금부터 [leftMs] 뒤에 알람, 그 직전에 "등받이를 세워 주세요". */
+    /**
+     * 지금부터 [leftMs] 뒤에 기상 알람. 종료 전 미리 알림은 하지 않는다: 운전자가 1분이라도 더 쉬게(2026-11-14 PM 결정).
+     * "등받이를 세워 주세요"는 기상 알람의 V-35에서만 말한다.
+     */
     private fun scheduleRestEnd(leftMs: Long) {
-        val prewarn = if (restSecOverride != null) config.demoRestPrewarnS * SECOND_MS else scaled(config.restPrewarnS * SECOND_MS)
-        after(T_PREWARN, (leftMs - prewarn).coerceAtLeast(0)) { say(VoiceLines.V34_UPRIGHT) }
         after(T_REST_END, leftMs) { alarmStep() }
     }
 
@@ -986,13 +987,17 @@ class WakeonStateMachine(
         say(VoiceLines.v33(leftMin))
     }
 
+    /**
+     * 기상 알람(F10 5번): 1단계부터 30초마다 한 단계씩 커져 3단계까지. 소리 파일 자체가 단계마다 커진다(알람 천천히 커짐).
+     * 3단계까지 올라도 반응이 없으면 3단계를 같은 간격으로 계속 울린다(F10 예외 "알람 3단계 유지", 2026-11-14 구현).
+     */
     private fun alarmStep() {
-        alarmLevel++
+        val first = alarmLevel == 0
+        alarmLevel = (alarmLevel + 1).coerceAtMost(config.alarmLevels)
         log("wake_alarm", "level" to alarmLevel)
-        val first = alarmLevel == 1
         // 다음 단계 간격은 이 단계의 소리(1단계는 V-35 문장까지)가 끝난 뒤부터 센다.
         // 시연 배속에서 간격이 짧아져도 알람 소리와 "일어나실 시간이에요"가 끊기지 않게 한다(2026-11-13).
-        val next = { if (alarmLevel < config.alarmLevels) after(T_STEP, scaled(config.alarmStepS * SECOND_MS)) { alarmStep() } }
+        val next = { after(T_STEP, scaled(config.alarmStepS * SECOND_MS)) { alarmStep() } }
         play(Sound.Alarm(alarmLevel)) {
             if (first) {
                 say(VoiceLines.V35) {
@@ -1030,11 +1035,10 @@ class WakeonStateMachine(
         recheckLatencies.clear()
         questionNo = 0
         questionTotal = config.recheckQuestions
-        // "등받이를 세워 주세요" 안내 전에는 질문하지 않는다(AC-11.1). 5초 뒤 질문.
-        say(VoiceLines.V34_UPRIGHT) {
-            // 스토리보드 장면 20: "출발 전에 세 가지만 물어볼게요." + "12 빼기 4는요?"를 한 번에 말한다.
-            after(T_NEXT, config.recheckBackrestWaitS * SECOND_MS) { askRecheck(intro = true) }
-        }
+        // "등받이를 세워 주세요"는 기상 알람 V-35에서 이미 말했다(그 안내 전에는 질문하지 않음, AC-11.1). 다시 말하지 않고
+        // 등받이를 세울 시간 5초 뒤 질문한다(2026-11-14 PM: 이 문장은 V-35에서만).
+        // 스토리보드 장면 20: "출발 전에 세 가지만 물어볼게요." + "12 빼기 4는요?"를 한 번에 말한다.
+        after(T_NEXT, config.recheckBackrestWaitS * SECOND_MS) { askRecheck(intro = true) }
     }
 
     private fun askRecheck(intro: Boolean = false) {
@@ -1307,7 +1311,6 @@ class WakeonStateMachine(
         private const val T_RESULT = "result"
         private const val T_RESUME = "resume"
         private const val T_STEP = "step"
-        private const val T_PREWARN = "prewarn"
         private const val T_REST_END = "rest_end"
         private const val T_REST_DONE = "rest_done"
 
