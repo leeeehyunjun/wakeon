@@ -1,0 +1,13 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="37" height="49" viewBox="0 0 37 49" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Group 5">
+<circle id="Ellipse 2" cx="18.5" cy="18.5" r="18.5" fill="url(#paint0_linear_0_11)"/>
+<circle id="Ellipse 3" cx="19" cy="23" r="4" fill="#52B6CD"/>
+<path id="Rectangle 32" d="M10 39.846C10 37.1901 12.823 35.4858 15.1732 36.7227L16.7385 37.5466C17.7675 38.0882 18.9972 38.0882 20.0262 37.5466L21.5915 36.7227C23.9418 35.4858 26.7647 37.1901 26.7647 39.846V45.4706C26.7647 47.4198 25.1845 49 23.2353 49H13.5294C11.5802 49 10 47.4198 10 45.4706V39.846Z" fill="#52B6CD"/>
+</g>
+<defs>
+<linearGradient id="paint0_linear_0_11" x1="18.5" y1="0" x2="18.5" y2="37" gradientUnits="userSpaceOnUse">
+<stop stop-color="#52B6CD"/>
+<stop offset="1" stop-opacity="0"/>
+</linearGradient>
+</defs>
+</svg>

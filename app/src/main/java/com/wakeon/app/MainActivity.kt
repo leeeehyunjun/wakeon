@@ -3,40 +3,53 @@ package com.wakeon.app
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.wakeon.app.config.WakeonConfig.Companion.MINUTE_MS
-import com.wakeon.app.core.WakeonSnapshot
-import com.wakeon.app.core.WakeonState
+import com.wakeon.app.core.TriggerId
+import com.wakeon.app.runtime.WakeonRuntime
+import com.wakeon.app.ui.screens.ScreenId
+import com.wakeon.app.ui.screens.WakeonActions
+import com.wakeon.app.ui.screens.WakeonScreen
+import com.wakeon.app.ui.screens.screenOf
+import com.wakeon.app.voice.UserIntent
 
 const val TAG = "Wakeon"
 
+/**
+ * 앱 창 하나. 화면은 상태 머신의 스냅샷만 보고 그린다(ui/screens). 시연용 버튼은 두지 않는다.
+ */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val runtime = WakeonApp.runtime(this)
+        val actions = RuntimeActions(runtime)
         setContent {
             val snapshot by runtime.snapshot.collectAsStateWithLifecycle()
-            StatusScreen(snapshot, windowBoundsPx = ::windowBoundsPx)
+            val screen = screenOf(snapshot)
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val w = maxWidth.value.toInt()
+                val h = maxHeight.value.toInt()
+                LaunchedEffect(w, h) { Log.i(TAG, "window content=${w}x${h}dp bounds=${windowBoundsPx()}px") }
+                LaunchedEffect(screen) {
+                    Log.i(TAG, "screen ${screen.id} state=${snapshot.state.id}")
+                    restBrightness(screen == ScreenId.W13)
+                }
+                WakeonScreen(snapshot, actions)
+            }
+        }
+    }
+
+    /** W-13 휴식 모드는 다크·밝기 최저(SPEC 8장). 앱 창 밝기만 바꾸고 차량 설정은 건드리지 않는다. */
+    private fun restBrightness(dim: Boolean) {
+        window.attributes = window.attributes.apply {
+            screenBrightness = if (dim) 0.01f else WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
         }
     }
 
@@ -49,48 +62,10 @@ class MainActivity : ComponentActivity() {
         }
 }
 
-/**
- * 임시 확인 화면: 상태와 차량 값, 지금 대사를 보여 준다. 단계 5에서 피그마 시안 화면으로 바꾼다.
- * 시연용 버튼은 두지 않는다.
- */
-@Composable
-fun StatusScreen(s: WakeonSnapshot, windowBoundsPx: () -> String = { "?" }) {
-    BoxWithConstraints(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black),
-        contentAlignment = Alignment.Center,
-    ) {
-        val config = LocalConfiguration.current
-        val density = LocalDensity.current.density
-        val w = maxWidth.value.toInt()
-        val h = maxHeight.value.toInt()
-
-        LaunchedEffect(w, h) {
-            Log.i(
-                TAG,
-                "window content=${w}x${h}dp config=${config.screenWidthDp}x${config.screenHeightDp}dp " +
-                    "bounds=${windowBoundsPx()}px density=$density",
-            )
-        }
-
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Text("Wakeon", color = Color.White, fontSize = 61.sp, fontWeight = FontWeight.Bold)
-            Text("${s.state.id} ${s.state.title}", color = Color(0xFF4FD0EE), fontSize = 45.sp, fontWeight = FontWeight.Bold)
-            Text(
-                "기어 ${s.gear ?: "?"} · ${s.speedKmh?.toInt() ?: "?"}km/h · 연속 ${s.driveMs / MINUTE_MS}분",
-                color = Color.White,
-                fontSize = 33.sp,
-            )
-            s.caption.lastOrNull()?.let { Text(it.text, color = Color.White, fontSize = 33.sp) }
-            Text("$w × $h dp", color = Color(0xFF8A8A8A), fontSize = 24.sp)
-        }
-    }
+private class RuntimeActions(private val runtime: WakeonRuntime) : WakeonActions {
+    override fun consent() = runtime.consent()
+    override fun startPrecheck() = runtime.startPrecheck()
+    override fun skipPrecheck() = runtime.skipPrecheck()
+    override fun tap(intent: UserIntent) = runtime.tap(intent)
+    override fun setTrigger(id: TriggerId, on: Boolean) = runtime.setTrigger(id, on)
 }
-
-@Preview(widthDp = 840, heightDp = 1184)
-@Composable
-private fun StatusScreenPreview() = StatusScreen(WakeonSnapshot(WakeonState.S03))

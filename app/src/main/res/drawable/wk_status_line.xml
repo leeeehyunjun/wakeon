@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- tools/svg2vd.py: pstatus_union.svg (그림자 여백 뺌) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="38.4989dp" android:height="2.0375dp"
+    android:viewportWidth="38.4989" android:viewportHeight="2.0375">
+  <group android:translateX="-14" android:translateY="-14">
+  <path android:pathData="M33.2666 14C39.8457 14.0036 49.6113 14.7185 51.9762 14.8993C52.275 14.9221 52.5029 15.1732 52.4991 15.4729C52.4949 15.8089 52.2087 16.0692 51.8745 16.0344C49.3697 15.7733 39.7808 14.8126 33.2578 14.6953C26.3669 14.5714 15.9965 15.2653 14.2507 15.3865C14.1113 15.3961 13.9985 15.2843 14.0003 15.1446C14.0018 15.0212 14.0894 14.9199 14.2124 14.9104C15.8184 14.7861 26.3015 13.9962 33.2666 14Z">
+      <aapt:attr name="android:fillColor">
+        <gradient android:type="linear" android:startX="18.9735" android:startY="15.7268" android:endX="41.0161" android:endY="13.1471">
+          <item android:offset="0.0" android:color="#FF437783"/>
+          <item android:offset="1.0" android:color="#FFFFFFFF"/>
+        </gradient>
+      </aapt:attr>
+  </path>
+  </group>
+</vector>

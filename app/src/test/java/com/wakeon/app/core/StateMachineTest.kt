@@ -286,6 +286,18 @@ class StateMachineTest {
         assertEquals(listOf("V-34", "V-33"), h.fx.lastLines.map { it.id })
 
         // 장면 18~19: 30초 휴식 → 5초 전 "등받이를 세워 주세요" → 알람 + V-35 → "일어났어" → S-14
+        // 시연 배속(60배)에서는 알람 간격 30초가 0.5초가 된다. 그래도 1단계 소리와 V-35가 끊기지 않아야 한다(2026-11-13).
+        h.m.demoTimeScale(60f)
+        while (!h.fx.sounds.contains(Sound.Alarm(1))) {
+            h.finishSpeech()
+            h.tick(200)
+        }
+        h.tick(2_000) // 알람 1단계 소리가 나는 중
+        assertTrue(Sound.Alarm(2) !in h.fx.sounds)
+        h.finishSound()
+        assertEquals("V-35", h.fx.lastLines.single().id)
+        h.tick(2_000) // V-35를 말하는 중
+        assertTrue(Sound.Alarm(2) !in h.fx.sounds)
         h.answer("으음… 일어났어.", 2_000)
         assertTrue(h.logs.any { it.first == "rest_completed" })
         assertTrue(h.fx.sounds.contains(Sound.Alarm(1)))

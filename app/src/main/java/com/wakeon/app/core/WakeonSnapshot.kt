@@ -66,5 +66,7 @@ data class WakeonSnapshot(
     val alarmLevel: Int = 0,
     val arrivedMinuteOfDay: Int? = null,
     val summary: SessionSummary = SessionSummary(),
+    /** 켜진 트리거 (W-02 토글). C1은 늘 켜짐(잠금). */
+    val triggersEnabled: Set<TriggerId> = setOf(TriggerId.C1, TriggerId.C2, TriggerId.C3),
     val nowMs: Long = 0,
 )

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- tools/svg2vd.py로 ic_coffee.svg에서 만듦. 피그마 시안 그림 그대로(그림자·블러 제외). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="64.0dp" android:height="64.0dp"
+    android:viewportWidth="64.0" android:viewportHeight="64.0">
+  <path android:pathData="M42.6667 29.3333V23.9999H10.6667V37.3333C10.6667 40.8695 12.0714 44.2609 14.5719 46.7613C17.0724 49.2618 20.4638 50.6666 24 50.6666H29.3333C32.8696 50.6666 36.2609 49.2618 38.7614 46.7613C41.2619 44.2609 42.6667 40.8695 42.6667 37.3333V29.3333ZM42.6667 29.3333H48C49.4145 29.3333 50.771 29.8952 51.7712 30.8953C52.7714 31.8955 53.3333 33.2521 53.3333 34.6666C53.3333 36.0811 52.7714 37.4376 51.7712 38.4378C50.771 39.438 49.4145 39.9999 48 39.9999H42.6667M21.3333 7.99992V15.9999M32 7.99992V15.9999"
+      android:strokeColor="#FFFFFFFF"
+      android:strokeWidth="5.33333"/>
+</vector>

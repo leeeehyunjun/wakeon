@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- tools/svg2vd.py: status_union.svg (그림자 여백 뺌) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="50dp" android:height="11.37dp"
+    android:viewportWidth="50" android:viewportHeight="11.37">
+  <group android:translateX="-14" android:translateY="-14">
+  <path android:pathData="M58.3154 14C61.4549 14.0001 64 16.546 64 19.6855C63.9997 22.8248 61.4547 25.37 58.3154 25.3701C57.3414 25.3701 56.4247 25.1251 55.6235 24.6933C52.6332 23.0818 50.0474 19.6207 46.6545 19.4559C46.3841 19.4428 46.1112 19.43 45.8364 19.4177C43.0142 19.2915 40.2986 22.2148 37.4736 22.2148C34.7513 22.2146 32.038 19.5736 29.3311 19.8626C28.2162 19.9817 27.1102 20.1107 26.0484 20.2418C23.0499 20.6122 20.4949 24.1074 17.4736 24.1074C15.5551 24.1073 14 22.5513 14 20.6328C14.0002 18.7144 15.5553 17.1593 17.4736 17.1592C20.2324 17.1592 23.1947 19.8757 25.9275 19.4974C26.8507 19.3696 27.8083 19.2421 28.7769 19.1202C31.7747 18.7431 34.4522 15.2669 37.4736 15.2666C40.2909 15.2666 42.9997 18.1611 45.8168 18.1927C46.2236 18.1972 46.6262 18.2028 47.0227 18.2092C50.3763 18.2632 53.3377 15.3485 56.5201 14.2895C57.0844 14.1017 57.688 14 58.3154 14Z">
+      <aapt:attr name="android:fillColor">
+        <gradient android:type="linear" android:startX="20.0357" android:startY="20.176" android:endX="49.6941" android:endY="18.8778">
+          <item android:offset="0.0" android:color="#FF437783"/>
+          <item android:offset="1.0" android:color="#FFFFFFFF"/>
+        </gradient>
+      </aapt:attr>
+  </path>
+  </group>
+</vector>

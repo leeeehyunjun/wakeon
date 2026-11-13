@@ -474,11 +474,16 @@ class WakeonStateMachine(
         questionTotal = QuestionBank.precheck.size
         val text = listOfNotNull(precheckAck, q.text).joinToString(" ")
         precheckAck = null
+        clearHeard()
         askQuestion(Line(q.id, text)) { r -> onPrecheckAnswer(q, r) }
     }
 
     private fun onPrecheckAnswer(q: Question, r: ListenResult) {
         if (r is ListenResult.Answer) {
+            // 화면(W-03): 다음 문항을 묻기 전까지 들은 말을 보여 준다. 판정은 보여 주지 않는다.
+            heard = r.text
+            heardCorrect = null
+            phase = VoicePhase.RESULT
             val correct = QuestionBank.judge(q, r.text, memory)
             remember(q, r.text)
             if (q.memoryKey == QuestionBank.KEY_PET) {
@@ -507,6 +512,7 @@ class WakeonStateMachine(
 
     private fun finishPrecheck() {
         log("precheck_done")
+        clearHeard()
         // TODO(4-2): 졸림 7 이상이면 V-05 → 수락 시 15분 휴식 S-12 (A2)
         precheckSummary = PrecheckSummary(kss, precheckCorrect, precheckTotal, baseline.baselineMs)
         go(S01, "precheck_done")
@@ -919,10 +925,19 @@ class WakeonStateMachine(
         alarmLevel++
         log("wake_alarm", "level" to alarmLevel)
         val first = alarmLevel == 1
+        // 다음 단계 간격은 이 단계의 소리(1단계는 V-35 문장까지)가 끝난 뒤부터 센다.
+        // 시연 배속에서 간격이 짧아져도 알람 소리와 "일어나실 시간이에요"가 끊기지 않게 한다(2026-11-13).
+        val next = { if (alarmLevel < config.alarmLevels) after(T_STEP, scaled(config.alarmStepS * SECOND_MS)) { alarmStep() } }
         play(Sound.Alarm(alarmLevel)) {
-            if (first) say(VoiceLines.V35) { listenForAwake() }
+            if (first) {
+                say(VoiceLines.V35) {
+                    listenForAwake()
+                    next()
+                }
+            } else {
+                next()
+            }
         }
-        if (alarmLevel < config.alarmLevels) after(T_STEP, scaled(config.alarmStepS * SECOND_MS)) { alarmStep() }
     }
 
     private fun listenForAwake() {
@@ -1010,6 +1025,13 @@ class WakeonStateMachine(
         caption = lines
         if (phase != VoicePhase.RESULT) phase = VoicePhase.SPEAKING
         effects.speak(t, lines, louder)
+    }
+
+    /** 인식 결과 표시를 지우고, 다음 말이 "말하는 중"으로 보이게 한다. */
+    private fun clearHeard() {
+        heard = null
+        heardCorrect = null
+        if (phase == VoicePhase.RESULT) phase = VoicePhase.IDLE
     }
 
     private fun listen(windowMs: Long, handler: (ListenResult) -> Unit) {
@@ -1196,6 +1218,7 @@ class WakeonStateMachine(
             alarmLevel = alarmLevel,
             arrivedMinuteOfDay = arrivedMinute,
             summary = summary,
+            triggersEnabled = triggers.enabled.toSet(),
             nowMs = now,
         )
     }

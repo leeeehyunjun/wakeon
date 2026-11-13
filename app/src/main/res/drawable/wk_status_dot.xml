@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- tools/svg2vd.py: w10_dot.svg (그림자 여백 뺌) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="11.3691dp" android:height="11.3701dp"
+    android:viewportWidth="11.3691" android:viewportHeight="11.3701">
+  <group android:translateX="-14" android:translateY="-14">
+  <path android:pathData="M19.6846 14C22.824 14.0001 25.3691 16.546 25.3691 19.6855C25.3689 22.8248 22.8239 25.37 19.6846 25.3701C16.5451 25.3701 14.0003 22.8249 14 19.6855C14 16.546 16.545 14 19.6846 14Z">
+      <aapt:attr name="android:fillColor">
+        <gradient android:type="linear" android:startX="15.3724" android:startY="20.176" android:endX="22.1285" android:endY="20.1087">
+          <item android:offset="0.0" android:color="#FF437783"/>
+          <item android:offset="1.0" android:color="#FFFFFFFF"/>
+        </gradient>
+      </aapt:attr>
+  </path>
+  </group>
+</vector>

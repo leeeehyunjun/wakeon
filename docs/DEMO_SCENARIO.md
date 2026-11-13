@@ -114,3 +114,4 @@ adb shell am broadcast -a com.wakeon.app.DEMO -p com.wakeon.app --es answer "'�
 - 에뮬레이터는 맥 마이크 입력을 끈 채로 켠다(`demo/start_emulator.sh`가 `avd hostmicoff`).
 - 녹화 뒤 `python3 -I tools/click_check.py 소리.wav`로 검사한다. 기준: 1초마다 순간 잡음 ≤ 0.5%, 말 사이 무음 RMS ≤ 2.
 - 녹화 전에 한 번 말을 시켜 TTS 엔진을 깨운다(첫 문장만 몇 초 늦음).
+- 화면 확인: `bash demo/capture_screens.sh`가 이 장면표를 시연 신호로 따라가며 화면마다 앱 창을 `docs/shots/W-xx.png`로 찍는다(정차 화면은 2:0 가로 창, 주행 화면은 1:1 세로 창으로 바꿔 가며). 대답은 묻기 전에 미리 넣는다(시연 모드는 듣기 창이 열릴 때 대답이 없으면 5초 무응답).

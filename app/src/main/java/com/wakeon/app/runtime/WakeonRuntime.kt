@@ -16,6 +16,7 @@ import com.wakeon.app.core.Sound
 import com.wakeon.app.core.TriggerId
 import com.wakeon.app.core.WakeonSnapshot
 import com.wakeon.app.core.WakeonStateMachine
+import com.wakeon.app.voice.UserIntent
 import com.wakeon.app.core.WallClock
 import com.wakeon.app.demo.DemoAnswers
 import com.wakeon.app.demo.DemoFirstListener
@@ -169,10 +170,25 @@ class WakeonRuntime(context: Context) {
         }
     }
 
-    /** 동의(W-01). 단계 5에서 화면이 부른다. */
+    /** 동의(W-01 "동의하고 시작"). */
     fun consent() {
         prefs.edit().putBoolean(KEY_CONSENT, true).apply()
         machine.onConsent()
+    }
+
+    // ── 화면 버튼 (같은 일을 음성으로도 할 수 있다)
+
+    fun startPrecheck() = ui("start_precheck") { machine.onStartPrecheck() }
+
+    fun skipPrecheck() = ui("skip_precheck") { machine.onSkipPrecheck() }
+
+    fun tap(intent: UserIntent) = ui("tap intent=$intent") { machine.onTap(intent) }
+
+    fun setTrigger(id: TriggerId, on: Boolean) = ui("trigger $id=$on") { machine.setTriggerEnabled(id, on) }
+
+    private inline fun ui(what: String, block: () -> Unit) {
+        Log.i(TAG, "ui $what")
+        block()
     }
 
     private fun pushVehicle() {

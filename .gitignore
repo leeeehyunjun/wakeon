@@ -18,3 +18,6 @@ keystore.properties
 
 # 시연 녹화 원본 (용량 큼)
 recordings/
+
+# 파이썬 도구 캐시
+__pycache__/

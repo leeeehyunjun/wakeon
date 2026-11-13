@@ -1,5 +1,6 @@
 package com.wakeon.app.voice
 
+import com.wakeon.app.ui.screens.ScreenStrings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -10,6 +11,7 @@ class ForbiddenExpressionsTest {
     private fun appTexts(): List<Pair<String, String>> =
         VoiceLines.allForCheck().map { it.id to it.text } +
             QuestionBank.all.map { it.id to it.text } +
+            ScreenStrings.all.mapIndexed { i, t -> "화면문구#$i" to t } +
             stringResources()
 
     /** res 아래 모든 strings.xml의 문자열. */
