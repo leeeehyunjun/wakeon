@@ -97,6 +97,7 @@ class WakeonRuntime(context: Context) {
                 AndroidRecognitionEngine(app, config.talkListenMaxS * SECOND_MS),
             ),
         ),
+        demoMode = { demoMode },
     )
     private val sounds: SoundPlayer = AssetSoundPlayer(app, audio, config.warnLevel3RaiseSteps, config.volumeStepDb)
     private var lastSpeechEndMs = 0L

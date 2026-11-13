@@ -29,16 +29,17 @@ wait_log() {
 "$ADB" shell am start -n com.wakeon.app/.MainActivity >/dev/null
 sleep 2
 
-if [ "$1" = "--record" ]; then
-  REC="$(bash "$DIR/record.sh" start voice_check)"
-  echo "녹화 시작: $REC"
-fi
-
 # 엔진 깨우기(첫 문장만 늦게 나오는 것을 녹음 전에 치움)
 "$ADB" logcat -c
 b --ez reset true --es gear P --ei speed 0 --ez c3 false
 wait_log "tts_spoken vid=V-02" 30
 "$ADB" logcat -c
+
+# 녹화는 엔진 깨우기가 끝난 뒤부터(시연 녹화와 같은 순서)
+if [ "$1" = "--record" ]; then
+  REC="$(bash "$DIR/record.sh" start voice_check)"
+  echo "녹화 시작: $REC"
+fi
 
 echo "1) 출발 전 체크 — 질문 4개, '강아지 좋죠.', '준비됐어요…' (약 35초)"
 b --ez reset true --es clock 21:04 --es gear P --ei speed 0 --ef timeScale 60 --ez c3 false
