@@ -372,6 +372,26 @@ class StateMachineTest {
     }
 
     @Test
+    fun `체크 전에 지나간 내비 안내는 출발 전 체크 응답을 무효로 만들지 않는다`() {
+        val h = Harness()
+        h.vehicle(Gear.P)
+        // 2026-11-13 녹화: 목적지를 넣자 내비가 안내를 한 번 말함 → 그 뒤 체크 네 문항이 모두 무효(V-07)였다
+        h.m.onVehicle(VehicleSignals(Gear.P, 0f, false, TurnSignal.OFF, navVoice = true))
+        h.tick(500)
+        h.m.onVehicle(VehicleSignals(Gear.P, 0f, false, TurnSignal.OFF, navVoice = false))
+        h.tick(500)
+        h.m.demoReset()
+        h.answer("응", 1_000)
+        h.answer("삼", 1_000)
+        h.answer("십이", 1_000)
+        h.answer("강아지", 1_000)
+        h.answer("김치찌개", 1_000)
+        assertEquals(S01, h.state)
+        assertEquals("V-06", h.fx.lastLines.single().id)
+        assertEquals(1_000L, h.snap.precheck?.baselineMs)
+    }
+
+    @Test
     fun `정답형 유효 응답이 3개 미만이면 V-07과 임시 기준`() {
         val h = Harness()
         h.vehicle(Gear.P)

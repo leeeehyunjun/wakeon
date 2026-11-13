@@ -374,6 +374,7 @@ class WakeonStateMachine(
         moreRestCount = 0
         heard = null
         heardCorrect = null
+        loadDuringQuestion = false
         go(S01, "reset")
         enterHome(sayInvite = true)
     }
@@ -479,6 +480,8 @@ class WakeonStateMachine(
         questionTotal = QuestionBank.precheck.size
         val text = listOfNotNull(precheckAck, q.text).joinToString(" ")
         precheckAck = null
+        // 문항마다 새로 본다(대화·재출발 체크와 같게). 빠뜨리면 체크 전에 한 번 울린 내비 안내 때문에 네 문항이 모두 무효가 된다.
+        loadDuringQuestion = signals.highLoad
         clearHeard()
         askQuestion(Line(q.id, text)) { r -> onPrecheckAnswer(q, r) }
     }

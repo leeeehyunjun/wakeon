@@ -45,6 +45,10 @@ case "$1" in
     ;;
 esac
 
+# 맥이 IPv6 전용 핫스폿 등에 있어 에뮬레이터가 DNS 목록을 못 읽으면("Failed to retrieve DNS servers list") 직접 지정한다.
+#   DNS_SERVER=8.8.8.8,1.1.1.1 bash demo/start_emulator.sh --record
+[ -n "$DNS_SERVER" ] && EXTRA+=(-dns-server "$DNS_SERVER")
+
 if [ -z "$QEMU_AUDIO_DRV" ]; then
   export QEMU_COREAUDIO_BUFFER_SIZE="${QEMU_COREAUDIO_BUFFER_SIZE:-2048}"
   export QEMU_COREAUDIO_BUFFER_COUNT="${QEMU_COREAUDIO_BUFFER_COUNT:-8}"

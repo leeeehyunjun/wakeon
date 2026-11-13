@@ -118,7 +118,9 @@ bash demo/run_scenario.sh --record        # 녹화(에뮬레이터를 bash demo/
 - 정차 장면(1~4, 17~21)은 2:0 가로 창, 주행 장면(5~16, 22)은 1:1 세로 창(왼쪽 Wakeon, 오른쪽 내비)으로 바꾼다. 창이 나뉘는 움직임도 영상에 담긴다.
 - 끝나면 실패한 장면(기다리던 로그가 안 온 곳)을 모아 보여 주고, 하나라도 있으면 종료 코드 1. 앱 로그는 `recordings/scenario_<시각>.log`.
 - 시스템 차량 값: 시연 신호와 함께 Pleos 가상 콘솔(기기 안 `localhost:8088`)에 기어·속도·브레이크·방향지시등을 같은 값으로 넣어, 왼쪽 Driving view가 앱과 같은 기어·속도를 보인다(PLEOS_NOTES 13장). 안전벨트 경고는 끌 수 없어 정차 장면(P)에 남는다.
-- 녹화 전 내비 점검: 내비가 지도 서버에 붙었는지 보고, 붙었으면 목적지 부산역을 넣어 경로 안내를 띄운다(`navDest`). 붙지 않으면 원인(예: `UnknownHostException`)을 출력하고 멈춘다. 그래도 진행하려면 `--skip-nav-check`.
+- 녹화 전 내비 점검: 내비가 지도 서버에 붙었는지 보고, 붙었으면 목적지 부산역을 넣어 경로 안내를 띄운다(`navDest`, 경로 시작까지 최대 45초 기다림). 경로를 넣으면 내비가 앞으로 나오므로 Wakeon을 다시 앞으로 부른다. 붙지 않으면 원인(예: `UnknownHostException`)을 출력하고 멈춘다. 그래도 진행하려면 `--skip-nav-check`.
+- 에뮬레이터가 맥에서 DNS 서버를 못 읽으면(휴대폰 핫스폿 등) DNS를 지정해 켠다: `DNS_SERVER=8.8.8.8,1.1.1.1 bash demo/start_emulator.sh --record`.
+- 편집: `python3 -I tools/video/edit_demo.py recordings/demo_<시각>.mp4` → `recordings/final/wakeoneteam_Wakeon_demo.mp4`(BUILD 단계 9). `--plan`은 자를 곳과 자막 시각만 출력한다.
 
 녹화는 **에뮬레이터 자체 화면 녹화**(`adb emu screenrecord`, `demo/record.sh`)로 화면과 기기 안 소리를 함께 담는다(2026-11-13 결정, `docs/DECISIONS.md`).
 - scrcpy는 이 차량용 에뮬레이터의 소리를 녹음하지 못한다(소리가 차량용 출력 버스로만 나가 무음으로 녹음됨).

@@ -136,7 +136,12 @@ fi
 if [ "$nav_ready" = 1 ]; then
   clear_log
   b --es navDest "'부산역|35.1151|129.0415'"
-  if wait_log "navi route_started" 20; then echo "내비: 지도 연결됨 · 목적지 부산역 경로 안내 시작"; fi
+  # 새로 켠 에뮬레이터는 경로 계산에 25~35초 걸린다(2026-11-13 실측)
+  if wait_log "navi route_started" 45; then echo "내비: 지도 연결됨 · 목적지 부산역 경로 안내 시작"; fi
+  # 경로를 넣으면 내비가 앞으로 나온다. Wakeon을 다시 앞으로 불러 창 순서(Wakeon 왼쪽 · 내비 오른쪽)를 지킨다.
+  sleep 2
+  "$ADB" shell am start -n com.wakeon.app/.MainActivity >/dev/null 2>&1
+  sleep 2
 else
   reason="$("$ADB" logcat -d --pid="$NAV_PID" 2>/dev/null | grep "gateway probe failed" | tail -1 | sed 's/.*gateway probe failed //')"
   echo "  ✗ 내비가 지도 서버에 연결되지 않음(화면: \"서비스 연결 중입니다\"). 원인: ${reason:-내비 앱 없음}"
