@@ -93,11 +93,12 @@ private class Harness(consented: Boolean = true) {
         return fx.lastLines.lastOrNull()
     }
 
-    fun answer(text: String, latencyMs: Long) {
+    /** [speechMs]: 시연 대답의 말하는 시간. 인식 결과는 말이 끝난 뒤(latency + speech) 오고, 응답 시간은 latency다. */
+    fun answer(text: String, latencyMs: Long, speechMs: Long = 0) {
         untilListening()
         val t = fx.listening!!
         fx.listening = null
-        tick(latencyMs)
+        tick(latencyMs + speechMs)
         m.onHeard(t, text, latencyMs)
     }
 
@@ -213,13 +214,14 @@ class StateMachineTest {
         assertEquals("아까 강아지가 더 좋다고 하셨죠. 키우세요?", h.untilListening()?.text)
         assertEquals(1, h.snap.questionNo)
         assertTrue(h.spokenIds().none { it.startsWith("T-FOOD") })
-        h.answer("네, 한 마리요.", 1_200)
+        // 시연 대답에는 말하는 시간(0.9초)이 붙는다. 응답 시간·판정은 말 시작까지로 그대로(2026-11-14)
+        h.answer("네, 한 마리요.", 1_200, speechMs = 900)
         assertTrue(h.logs.none { it.first == "suspect" }) // 1.2초 ≤ 1.5초
         // 장면 7: 인식 결과 2초 표시 → 호응 + 이어지는 질문 (2/6)
         assertEquals("네, 한 마리요.", h.snap.heard)
         assertEquals("한 마리 키우시는구나. 이름이 뭐예요?", h.untilListening()?.text)
         assertEquals(2, h.snap.questionNo)
-        h.answer("보리요.", 1_700)
+        h.answer("보리요.", 1_700, speechMs = 900)
         assertTrue(h.logs.none { it.first == "suspect" }) // 최근 3개 [1.0, 1.2, 1.7] 중 1.5초 초과는 1개
 
         // 장면 8: 결과 표시 중 브레이크 + 방향지시등 → S-05, 꺼지고 10초 뒤 이어서
@@ -233,7 +235,7 @@ class StateMachineTest {
         // 장면 9: "보리, 이름 예쁘네요. 보리는 몇 살이에요?" (3/6) → 2.8초 → 최근 3개 [1.2, 1.7, 2.8] 중 2개 > 1.5초 → S1 → S-06
         assertEquals("보리, 이름 예쁘네요. 보리는 몇 살이에요?", h.untilListening()?.text)
         assertEquals(3, h.snap.questionNo)
-        h.answer("…3살… 인가?", 2_800)
+        h.answer("…3살… 인가?", 2_800, speechMs = 900)
         assertEquals(S06, h.state)
         assertEquals(listOf(1_200L, 1_700L, 2_800L), h.logs.filter { it.first == "talk_q" }.map { it.second["latency_ms"] })
         assertEquals("S1", h.logs.single { it.first == "suspect" }.second["signal"])

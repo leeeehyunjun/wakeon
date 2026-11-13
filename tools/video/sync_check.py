@@ -124,7 +124,8 @@ def main():
     video = os.path.abspath(args.video)
     subs = args.subs or os.path.join(os.path.dirname(video), "work", "subtitles.json")
     out = args.out or os.path.join(os.path.dirname(video), "subtitle_sync.md")
-    items = json.load(open(subs, encoding="utf-8"))["items"]
+    plan = json.load(open(subs, encoding="utf-8"))
+    items, cuts = plan["items"], sorted(plan.get("cuts", []))
 
     act = audio_activity(video)
     changes = band_changes(video)
@@ -174,6 +175,48 @@ def main():
                     if diff is not None else
                     f"| {k} | {it['kind']} | {text} | {mmss(shown) if shown is not None else '못 찾음'} | "
                     f"{mmss(ref) if ref is not None else '못 찾음'} ({ref_name}) | — | ✗ | — | — | — |\n")
+    # 운전자 자막 규칙(2026-11-14): 뜬 뒤 같은 컷에 0.8초 이상 머문다 / 다음 컷이나 다음 앱 말까지 남지 않는다.
+    # 차 자막도 다음 컷까지 남지 않는지 같이 본다. 자막 시작·끝은 완성본 화면에서 잰 값(못 찾으면 계획 값).
+    shown_of = {id(it): (shown, shown_end) for it, shown, _, _, _, _, shown_end, _ in rows}
+    car_rows = sorted((shown if shown is not None else it["a"]) for it, shown, *_ in rows if it["kind"] == "차")
+    stay_rows, linger_rows = [], []
+    if cuts:
+        for it, shown, *_rest in rows:
+            st, en = shown_of[id(it)]
+            st = st if st is not None else it["a"]
+            en = en if en is not None else it["b"]
+            next_cut = next((c for c in cuts if c > st + 1e-3), None)
+            if it["kind"] == "나":
+                stay = next_cut - st if next_cut is not None else None
+                stay_rows.append((it, st, next_cut, stay, stay is not None and stay >= 0.8 - 1e-6))
+                nxt_car = next((c for c in car_rows if c > st + 1e-3), None)
+                limits = [x for x in (next_cut, nxt_car) if x is not None]
+                limit = min(limits) if limits else None
+                which = "다음 컷" if limit is not None and limit == next_cut else "다음 앱 말"
+            else:
+                limit, which = next_cut, "다음 컷"
+            over = (en - limit) if limit is not None else None
+            linger_rows.append((it, st, en, limit, which, over, over is None or over <= 1 / FPS / 2 + 1e-6))
+        n_stay_bad = sum(1 for *_, ok in stay_rows if not ok)
+        n_linger = sum(1 for *_, ok in linger_rows if not ok)
+        with open(out, "a", encoding="utf-8") as f:
+            f.write("\n## 운전자 자막이 뜬 뒤 컷이 바뀔 때까지\n\n")
+            f.write(f"- 기준: 0.8초 이상 · 결과: {len(stay_rows) - n_stay_bad}/{len(stay_rows)} 통과\n\n")
+            f.write("| # | 대답 | 자막 시작 | 다음 컷 | 머문 시간(초) | 판정 |\n| --- | --- | --- | --- | --- | --- |\n")
+            for k, (it, st, nc, stay, ok) in enumerate(stay_rows, 1):
+                f.write(f"| {k} | {it['text']} | {mmss(st)} | {mmss(nc) if nc is not None else '—'} | "
+                        f"{f'{stay:.2f}' if stay is not None else '—'} | {'✓' if ok else '✗'} |\n")
+            f.write("\n## 자막이 다음 컷·다음 앱 말까지 남는 곳\n\n")
+            f.write("- 운전자 자막(나): 다음 컷이나 다음 앱 말(차) 자막이 뜨기 전에 내려가야 함. 앱 대사(차): 다음 컷 전에 내려가야 함\n")
+            f.write(f"- 자막 끝은 완성본 화면에서 자막 띠가 바뀐 프레임 · 결과: 남는 곳 {n_linger}개\n\n")
+            f.write("| # | 종류 | 문장 | 자막 시작 | 자막 끝 | 넘으면 안 되는 곳 | 시각 | 판정 |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n")
+            for k, (it, st, en, limit, which, over, ok) in enumerate(linger_rows, 1):
+                text = it["text"].replace("|", "\\|")
+                f.write(f"| {k} | {it['kind']} | {text} | {mmss(st)} | {mmss(en)} | {which if limit is not None else '—'} | "
+                        f"{mmss(limit) if limit is not None else '—'} | {'✓' if ok else '✗ 남음'} |\n")
+        print(f"운전자 자막 → 다음 컷: {len(stay_rows) - n_stay_bad}/{len(stay_rows)}개 0.8초 이상 · 자막 남는 곳 {n_linger}개")
+        bad += n_stay_bad + n_linger
+
     # 화면 전환 ↔ 소리: 화면이 바뀌며 앱이 말을 시작하는 곳에서, 완성본의 (소리 시작 − 화면 바뀜)을 앱 로그의 (재생 시작 − 화면 전환)과 비교
     avp = os.path.join(os.path.dirname(subs), "av_events.json")
     if os.path.exists(avp):

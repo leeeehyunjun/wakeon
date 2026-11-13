@@ -246,7 +246,11 @@ class WakeonRuntime(context: Context) {
         }
 
         e.string("answer")?.let { text ->
-            answers.add(text, e.int("latencyMs")?.toLong() ?: DemoAnswers.DEFAULT_LATENCY_MS)
+            answers.add(
+                text,
+                e.int("latencyMs")?.toLong() ?: DemoAnswers.DEFAULT_LATENCY_MS,
+                e.int("speechMs")?.toLong() ?: DemoAnswers.DEFAULT_SPEECH_MS,
+            )
         }
 
         // 진단용: 내비에 경유지를 넣어 보고 결과만 로그로 남긴다(Pleos 문서 예시 좌표).

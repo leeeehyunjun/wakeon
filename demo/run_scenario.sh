@@ -134,10 +134,36 @@ if [ -n "$NAV_PID" ]; then
   if ! "$ADB" logcat -d --pid="$NAV_PID" | grep -q "gateway probe failed"; then nav_ready=1; fi
 fi
 if [ "$nav_ready" = 1 ]; then
-  clear_log
-  b --es navDest "'부산역|35.1151|129.0415'"
-  # 새로 켠 에뮬레이터는 경로 계산에 25~35초 걸린다(2026-11-13 실측)
-  if wait_log "navi route_started" 45; then echo "내비: 지도 연결됨 · 목적지 부산역 경로 안내 시작"; fi
+  # 새로 켠 에뮬레이터는 경로 계산에 25~35초 걸린다(2026-11-13 실측).
+  # 첫 요청이 "경로 탐색 오류(일시적으로 서비스를 이용할 수 없습니다)"로 끝나기도 한다(2026-11-14, 바로 다시 요청하면 10초 만에 됨).
+  # 그 오류 창은 경로가 잡힌 뒤에도 남으므로 닫고 다시 요청한다(최대 3번). 오류 없이 시간만 넘으면(이미 경로가 있을 때 등) 그대로 진행.
+  route=""
+  for try in 1 2 3; do
+    clear_log
+    b --es navDest "'부산역|35.1151|129.0415'"
+    for _ in $(seq 1 225); do
+      nl="$("$ADB" logcat -d -s 'Wakeon:*')"
+      echo "$nl" | grep -q "navi route_started" && { route=ok; break; }
+      echo "$nl" | grep -q "navi error" && { route=error; break; }
+      sleep 0.2
+    done
+    [ "$route" = error ] || break
+    echo "  내비 경로 탐색 오류(${try}번째) → 오류 창을 닫고 다시 요청"
+    sleep 2
+    "$ADB" shell input tap 1693 821   # 내비 오류 창의 "닫기"(경로를 넣으면 내비가 2:0 창으로 앞에 나온다)
+    sleep 3
+    route=""
+  done
+  if [ "$route" = ok ]; then
+    echo "내비: 지도 연결됨 · 목적지 부산역 경로 안내 시작"
+  elif [ "$route" = error ]; then
+    echo "  ✗ 내비 경로 탐색이 3번 모두 오류. 녹화하지 않고 멈춘다(그래도 진행하려면 --skip-nav-check)"
+    FAILS+=("준비: 내비 경로 탐색 오류")
+    [ "$NAV_CHECK" = 1 ] && exit 2
+  else
+    echo "  ✗ 장면 0: 기다리던 로그가 없음 (navi route_started) — 오류는 없어 그대로 진행"
+    FAILS+=("장면 0: navi route_started")
+  fi
   # 경로를 넣으면 내비가 앞으로 나온다. Wakeon을 다시 앞으로 불러 창 순서(Wakeon 왼쪽 · 내비 오른쪽)를 지킨다.
   sleep 2
   "$ADB" shell am start -n com.wakeon.app/.MainActivity >/dev/null 2>&1

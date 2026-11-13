@@ -70,10 +70,15 @@ object ScreenStrings {
     const val ROUTINE = "몸 깨우기"
     const val COFFEE_TITLE = "커피가 있으면 지금"
     const val COFFEE_BODY = "카페인은 15~20분 뒤에 효과가 나요.\n마시고 바로 자면 깰 때쯤 효과가 와요."
-    const val POINT_TITLE = "15분 이상 쉬면"
-    const val POINT_BODY = "도로공사 휴식포인트 대상이에요"
-    /** 제휴한 것처럼 보이지 않게 작은 글자로 붙인다(2026-11-13 PM 결정). */
-    const val POINT_NOTE = "(적립 연동은 제휴 후)"
+    /**
+     * 휴식포인트 안내(F15). 한 문장 "위드라이브 앱이 있으면 15분 휴식으로 도로공사 휴식포인트를 받을 수 있어요"를 제목·본문으로 나눴다.
+     * 도로공사 휴식포인트는 운전자가 휴대폰 '위드라이브' 앱으로 받는 제도다(쉼터 도착 알림을 누르고 15분 이상 휴식, 2026-12-31까지).
+     * Wakeon만 써도 받는 것처럼 읽히지 않게 고쳤다(2026-11-14 PM 결정, 출처는 docs/DECISIONS.md). 화면 안내만 하고 소리 내어 말하지 않는다.
+     */
+    const val POINT_TITLE = "위드라이브 앱이 있으면"
+    const val POINT_BODY = "15분 휴식으로 도로공사\n휴식포인트를 받을 수 있어요"
+    /** 제휴한 것처럼 보이지 않게 작은 글자로 붙인다(2026-11-13 PM 결정, 2026-11-14 문구 변경). */
+    const val POINT_NOTE = "(Wakeon 연동은 제휴 후)"
     fun restOf(min: Int) = "${min}분 중 · 등받이를 젖히고 눈을 붙이세요"
     const val PLUS_5 = "+  5분"
     const val WAKE_NOW = "지금 일어나기"

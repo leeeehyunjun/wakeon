@@ -34,8 +34,7 @@ ACTIVE_RMS = 150      # 16bit 기준. 녹화 소리는 게이트로 무음이 0�
 HOLD_CAR = 0.2        # 앱 대사 자막을 소리가 끝난 뒤 더 보이는 시간(말이 끝나면 내려간다)
 DUR_ANSWER = 1.6      # 운전자 대답 자막 시간
 DUR_ANSWER_NOTE = 2.6 # 응답 시간 자막이 붙은 대답
-MIN_VISIBLE = 1.5     # 운전자 대답 자막이 다음 컷 전에 보여야 하는 최소 시간
-STATIC_DIFF = 0.6     # 장면 22 '깨끗한 화면' 판정: 앱 화면 프레임 사이 평균 차이(0~255) 기준
+MIN_STAY = 0.8        # 운전자 대답 자막이 뜬 뒤 같은 컷에 머무는 최소 시간(2026-11-14 PM 규칙)
 TITLE_S, END_S = 4.0, 5.0
 NAV_RECT = [1288, 67, 632, 908]   # 1:1 창일 때 내비 자리(원본 [1718,90]-[2559,1300] × 0.75)
 
@@ -219,7 +218,6 @@ def calibrate(log, audio, d0):
     return d, [(",".join(c["vids"]), x - (d - d0)) for c, x in diffs]
 
 
-APP_RECT = (853, 95, 840, 1200)   # 1:1 창일 때 Wakeon 앱 자리(원본 2560×1440 기준 x, y, w, h)
 APP_INNER = (900, 150, 750, 1100)  # 2:0·1:1 창 모두에서 앱 안쪽인 곳(화면 전환 찾기용)
 
 
@@ -272,34 +270,10 @@ def first_change(video, a, b, rect=APP_INNER):
     return best[0] if best else None
 
 
-def static_run(video, a, b):
-    """[a, b)에서 앱 화면이 가장 오래 멈춰 있는 구간(영상 시각). 프레임 사이 평균 차이가 STATIC_DIFF 이하."""
-    if b - a < 0.5:
-        return None
-    x, y, w, h = APP_RECT
-    sw, sh = 84, 120
-    raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{a:.3f}", "-t", f"{b - a:.3f}", "-i", video, "-an", "-vf",
-                          f"fps={FPS},crop={w}:{h}:{x}:{y},scale={sw}:{sh}:flags=area,format=gray", "-f", "rawvideo", "-"],
-                         check=True, capture_output=True).stdout
-    n = sw * sh
-    frames = [raw[i:i + n] for i in range(0, len(raw) - n + 1, n)]
-    best, start = None, 0
-    for k in range(1, len(frames) + 1):
-        moving = k < len(frames) and sum(abs(p - q) for p, q in zip(frames[k - 1], frames[k])) / n > STATIC_DIFF
-        if moving or k == len(frames):
-            if best is None or (k - 1 - start) > (best[1] - best[0]):
-                best = (start, k - 1)
-            start = k
-    if best is None:
-        return None
-    return (a + best[0] / FPS, a + best[1] / FPS)
-
-
 # ─────────────────────────────── 장면표
 class Plan:
     def __init__(self, log, audio, d, video=None, lead=0.0, shift=0.0):
         self.log, self.audio, self.d, self.video, self.lead, self.shift = log, audio, d, video, lead, shift
-        self.scene22 = None
         self.pre = {}         # 구간 시작(원본, 프레임에 맞춘 값) → 소리 먼저 시작(초)
         self.scenes = []      # (번호, 화면, 제목, [(a,b) 영상 시각])
         self.captions = []    # (영상 시각, 글, 출력 길이)
@@ -387,7 +361,8 @@ def scenes(p):
     # 9 · W-05 "보리는 몇 살이에요?" → "…3살… 인가?"(2.8초)
     pt3 = L.call("T-PET-3", paused)
     a9 = L.answer(pt3["end"])
-    p.notes[round(a9["t"], 3)] = "응답 2.8초 · 평소 1.0초"
+    # 운전자 자막은 앱의 다음 말(V-15) 전에 내려가므로, 응답 시간 편집 자막은 아래 자막 줄로 대답부터 2.6초
+    p.captions.append((v(a9["t"]), "응답 2.8초 · 평소 1.0초", 2.6))
     p.scene(9, "W-05", "대답이 늦어짐 (2.8초)", (p.on(pt3) - 0.45, v(a9["t"])))
     # 10 · W-07 의심 확인 → "아니, 괜찮아."
     v15 = L.call("V-15", pt3["end"])
@@ -456,17 +431,9 @@ def scenes(p):
     s21 = (start21, thanks + 1.7)
     p.scene(21, "W-16", "출발 · 다음 쉼터", (s21[0], s21[1], pre21))
     p.pre21 = pre21
-    # 22 · W-04 다시 대기(1:1 창) · 연속 0분: 앱 화면이 2초 넘게 멈춰 있는(창 전환·화면 바뀜 없는) 구간만 쓴다. 없으면 뺀다.
-    s04b = L.find(r"screen W-04", v52["end"])
-    run = static_run(p.video, v(s04b), min(v(s04b) + 6.0, p.audio.duration - 0.2))
-    p.scene22 = run
-    if run and run[1] - run[0] >= 2.0:
-        a22, b22 = run[0], min(run[1], run[0] + 4.0)
-        p.scene(22, "W-04", "다시 대기 · 연속 0분", (a22, b22))
-        p.captions.append((a22, "연속 주행 시간이 0부터", b22 - a22))
-    else:
-        # W-16 화면에도 "연속 주행 시간 0부터"가 있어 편집 자막은 장면 21 끝에 단다
-        p.captions.append((thanks, "연속 주행 시간이 0부터", s21[1] - thanks))
+    # 22 · W-04 다시 대기는 영상에서 뺀다(2026-11-14 PM 결정, 앱 동작은 그대로). 장면 21에서 바로 엔드 카드.
+    #      W-16 화면에도 "연속 주행 시간 0부터"가 있어 편집 자막은 장면 21 끝("고마워."와 같이)에 단다.
+    p.captions.append((thanks, "연속 주행 시간이 0부터", s21[1] - thanks))
 
 
 # ─────────────────────────────── 시각 옮기기·자막
@@ -540,13 +507,19 @@ def subtitle_items(p, segs):
                       "src": "log" if c.get("play") is not None else "audio", "end_hint": to_out(ssegs, off)})
     answers = [(p.vv(ans["t"]), ans["text"], p.notes.get(round(ans["t"], 3)), "대답 시각(로그, 화면 기준)", segs) for ans in p.log.answers]
     answers += [(t, text, None, ref_name, ssegs) for t, text, ref_name in p.extra]
+    # 운전자 자막(2026-11-14 PM 규칙): 앱의 다음 말 소리가 시작되기 전이나 컷이 바뀔 때 내려간다. 뜬 뒤 같은 컷에 0.8초 이상 머문다.
+    car_starts = sorted(i["a"] for i in items if i["kind"] == "차")
     for t, text, note, ref_name, sg in answers:
         if not any(sa + 0.2 <= t <= sb for sa, sb, _, _ in sg):
             continue
         a = to_out(sg, t)
-        b = min(a + (DUR_ANSWER_NOTE if note else DUR_ANSWER), seg_end(sg, t))
-        if b - a < MIN_VISIBLE - 1e-6:
-            warn.append(f"대답 자막이 다음 컷 전에 {b - a:.1f}초만 보임: {text}")
+        cut = seg_end(sg, t)
+        nxt = next((c for c in car_starts if c > a + 1e-3), None)
+        b = min([a + (DUR_ANSWER_NOTE if note else DUR_ANSWER), cut] + ([nxt] if nxt is not None else []))
+        if cut - a < MIN_STAY - 1e-6:
+            warn.append(f"운전자 자막이 뜬 뒤 {cut - a:.2f}초 만에 컷이 바뀜(0.8초 미만): {text}")
+        if b - a < MIN_STAY - 1e-6:
+            warn.append(f"운전자 자막이 {b - a:.2f}초만 보임(다음 앱 말이 빨리 옴): {text}")
         items.append({"kind": "나", "text": text, "note": note, "a": a, "b": b, "ref": a, "ref_name": ref_name})
     for t, text, dur in p.captions:
         a = to_out(segs, t)
@@ -558,6 +531,13 @@ def subtitle_items(p, segs):
         same = sorted([i for i in items if i["kind"] == kind], key=lambda i: i["a"])
         for x, y in zip(same, same[1:]):
             x["b"] = min(x["b"], y["a"])
+    # 프레임에 맞춘 뒤에도 운전자 자막은 다음 앱 말 자막이 뜨는 프레임에 내려가 있어야 한다
+    cars = sorted(i["a"] for i in items if i["kind"] == "차")
+    for i in items:
+        if i["kind"] == "나":
+            nxt = next((c for c in cars if c > i["a"]), None)
+            if nxt is not None:
+                i["b"] = min(i["b"], nxt)
     return sorted(items, key=lambda i: i["a"]), warn
 
 
@@ -659,7 +639,8 @@ def main():
     work = os.path.join(out_dir, "work")
     os.makedirs(work, exist_ok=True)
     with open(os.path.join(work, "subtitles.json"), "w", encoding="utf-8") as f:
-        json.dump({"items": [dict(i, a=i["a"] + TITLE_S, b=i["b"] + TITLE_S,
+        json.dump({"cuts": [TITLE_S] + [o + TITLE_S for _, _, o, _ in segs[1:]] + [TITLE_S + body],
+                   "items": [dict(i, a=i["a"] + TITLE_S, b=i["b"] + TITLE_S,
                                   **({"ref": i["ref"] + TITLE_S} if "ref" in i else {}),
                                   **({"end_hint": i["end_hint"] + TITLE_S} if "end_hint" in i else {})) for i in items]},
                   f, ensure_ascii=False, indent=1)
