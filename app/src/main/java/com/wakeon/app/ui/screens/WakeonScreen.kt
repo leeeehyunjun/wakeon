@@ -169,7 +169,7 @@ private fun PW12() = P(sample(S11, Gear.P, VoiceLines.V30_A, phase = VoicePhase.
 private fun PW13() = P(sample(S12, Gear.P, VoiceLines.v33(15)).copy(restEndsAtMs = 29_000, nowMs = 0, restTotalMs = 30_000, restNominalMs = 15 * MINUTE_MS))
 
 @Preview(name = "W-13b 기상 알람", widthDp = 1700, heightDp = 1184) @Composable
-private fun PW13b() = P(sample(S12, Gear.P, VoiceLines.V35).copy(alarmLevel = 2))
+private fun PW13b() = P(sample(S12, Gear.P, VoiceLines.v35(15)).copy(alarmLevel = 2))
 
 @Preview(name = "W-15 재출발 체크", widthDp = 1700, heightDp = 1184) @Composable
 private fun PW15() = P(sample(S14, Gear.P, VoiceLines.V50, Line("Q-R1", "12 빼기 4는요?"), phase = VoicePhase.LISTENING))

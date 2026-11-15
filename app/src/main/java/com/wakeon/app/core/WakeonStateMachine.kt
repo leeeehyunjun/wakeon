@@ -1000,7 +1000,8 @@ class WakeonStateMachine(
         val next = { after(T_STEP, scaled(config.alarmStepS * SECOND_MS)) { alarmStep() } }
         play(Sound.Alarm(alarmLevel)) {
             if (first) {
-                say(VoiceLines.V35) {
+                // V-35의 분 = 실제로 쉰 길이(기본 15, 연장 20·25·30). W-13b 화면과 같은 값(restNominalMs)을 쓴다.
+                say(VoiceLines.v35(((restNominalMs + MINUTE_MS / 2) / MINUTE_MS).toInt())) {
                     listenForAwake()
                     next()
                 }

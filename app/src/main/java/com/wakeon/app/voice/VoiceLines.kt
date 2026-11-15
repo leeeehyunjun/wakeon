@@ -48,7 +48,8 @@ object VoiceLines {
     val V32 = Line("V-32", "잠깐 눈 붙인 뒤에 하면 더 좋아요. 그래도 지금 할까요?")
     const val V33 = "{분}분 뒤에 깨워 드릴게요. 편히 쉬세요."
     val V34_RECLINE = Line("V-34", "등받이를 뒤로 젖히고 쉬세요.")
-    val V35 = Line("V-35", "일어나실 시간이에요. 등받이를 세워 주세요.")
+    /** {분}은 실제로 쉰 길이(기본 15, 연장하면 20·25·30). W-13b 화면은 이 문장을 그대로 나눠 보인다(2026-11-15). */
+    const val V35 = "일어나실 시간이에요. {분}분 휴식 완료. 등받이를 세워 주세요."
     val V36 = Line("V-36", "충분히 주무시고 가세요.")
     val V37 = Line("V-37", "쉬는 중에 출발하셨어요. 20분 뒤에 다시 말을 걸게요.")
     val V40 = Line("V-40", "깨어난 직후엔 몸이 덜 깼어요. 스트레칭, 따라 말하기, 걷기 중에 뭐 할까요?")
@@ -67,6 +68,7 @@ object VoiceLines {
     fun v26(km: String) = Line("V-26", fill(V26, "거리" to km))
     fun v29(km: String, exit: String) = Line("V-29", fill(V29, "거리" to km, "방향" to exit))
     fun v33(minutes: Int) = Line("V-33", fill(V33, "분" to minutes.toString()))
+    fun v35(minutes: Int) = Line("V-35", fill(V35, "분" to minutes.toString()))
     fun v51(minutes: Int) = Line("V-51", fill(V51, "분" to minutes.toString()))
     fun v52(km: String) = Line("V-52", fill(V52, "거리" to km))
 
@@ -76,7 +78,7 @@ object VoiceLines {
         V11_OK, Line("V-12", fill(V12_MORE, "이름" to "보리")), Line("V-12", V12_MORE_GENERIC), V20,
         v21("12", "가나졸음쉼터"), v22("27", "다라휴게소"), V22B, v23("12", "가나졸음쉼터"),
         v24("가나졸음쉼터", 8), V24B, v25("1", "가나졸음쉼터", "오른쪽"), v26("38"), V27, V28,
-        v29("12", "오른쪽"), V30_A, V30_B, V31, V32, v33(15), V34_RECLINE, V35, V36,
+        v29("12", "오른쪽"), V30_A, V30_B, V31, V32, v33(15), V34_RECLINE, v35(15), v35(30), V36,
         V37, V40, V41, V50, v51(5), v52("38"), V60,
     )
 

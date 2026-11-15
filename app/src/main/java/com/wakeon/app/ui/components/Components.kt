@@ -319,30 +319,5 @@ fun GlowNumber(text: String, modifier: Modifier = Modifier) {
     }
 }
 
-/**
- * 휴식 상태 칩 (132:1819): 둥근 알약 안에 아이콘 · 글자. 누를 수 없는 상태 표시다(2026-11-14 PM 결정).
- * 시안의 토글처럼 보이는 꾸밈(그림자, 빛 반사, 흰 테두리, 오른쪽 스위치 손잡이 표시)은 눌리는 것처럼 보여서 뺐다(DESIGN_DIFF W-13).
- */
-@Composable
-fun RestChip(@DrawableRes icon: Int, iconInCircle: Boolean, iconW: Float, iconH: Float, text: String, modifier: Modifier = Modifier) {
-    Row(
-        modifier
-            .clip(RoundedCornerShape(72.28.dp))
-            .background(WakeonColors.Primary800)
-            .padding(start = 16.dp, end = 32.dp, top = 12.dp, bottom = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (iconInCircle) {
-            Box(Modifier.size(81.677.dp).background(WakeonColors.Black, CircleShape), contentAlignment = Alignment.Center) {
-                Image(painterResource(icon), null, Modifier.size(iconW.dp, iconH.dp))
-            }
-        } else {
-            Image(painterResource(icon), null, Modifier.size(iconW.dp, iconH.dp))
-        }
-        Text(text, style = WakeonType.caption4, color = WakeonColors.White, maxLines = 1)
-    }
-}
-
 /** 둥근 사각 영역의 모양 (원 그리기 도우미). */
 internal fun roundRect(size: Size, r: Float) = RoundRect(0f, 0f, size.width, size.height, r, r)

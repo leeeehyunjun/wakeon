@@ -46,7 +46,6 @@ import com.wakeon.app.core.WakeonSnapshot
 import com.wakeon.app.ui.components.CardGlow
 import com.wakeon.app.ui.components.HintCard
 import com.wakeon.app.ui.components.PillBox
-import com.wakeon.app.ui.components.RestChip
 import com.wakeon.app.ui.components.StatPill
 import com.wakeon.app.ui.components.StatusGlyph
 import com.wakeon.app.ui.components.StatusLabel
@@ -343,7 +342,11 @@ fun W12Arrived(s: WakeonSnapshot, actions: WakeonActions) {
             start(Modifier.at(57f, 712f).width(726.dp))
             routine(Modifier.at(57f, 960f).width(726.dp))
             InfoBlock(R.drawable.wk_ic_coffee, ScreenStrings.COFFEE_TITLE, ScreenStrings.COFFEE_BODY, Modifier.at(925f, 299f).width(665.dp))
-            InfoBlock(null, ScreenStrings.POINT_TITLE, ScreenStrings.POINT_BODY, Modifier.at(925f, 712f).width(665.dp), note = ScreenStrings.POINT_NOTE)
+            // 시안 292:2484 (2026-11-15): 차+신호 아이콘 67×68, 아래 작은 안내는 블록에서 25 띄움
+            InfoBlock(
+                R.drawable.wk_ic_withdrive, ScreenStrings.POINT_TITLE, ScreenStrings.POINT_BODY, Modifier.at(925f, 664f).width(665.dp),
+                note = ScreenStrings.POINT_NOTE, iconW = 67f, iconH = 68f,
+            )
         } else {
             PortraitStack {
                 arrived(Modifier.fillMaxWidth())
@@ -390,42 +393,36 @@ private fun RestStartButton(count: Int, onClick: () -> Unit, modifier: Modifier)
     }
 }
 
-/** 오른쪽 안내 (132:1679): 아이콘 64 + 제목 Bold 50 + 설명 Regular 40. 아이콘이 없으면 시안처럼 빈 칸. */
+/** 오른쪽 안내 (148:12640 · 292:2484): 아이콘 + 7 + 제목 Bold 50 + 24 + 설명 Regular 40, 작은 안내는 25 아래 Regular 30. */
 @Composable
-private fun InfoBlock(icon: Int?, title: String, body: String, modifier: Modifier, note: String? = null) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        if (icon != null) Image(painterResource(icon), null, Modifier.size(64.dp)) else Box(Modifier.size(64.dp).background(WakeonColors.IconSlot))
-        Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
-            Text(title, style = WakeonType.title1, color = WakeonColors.White)
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+private fun InfoBlock(icon: Int, title: String, body: String, modifier: Modifier, note: String? = null, iconW: Float = 64f, iconH: Float = 64f) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(25.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Image(painterResource(icon), null, Modifier.size(iconW.dp, iconH.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                Text(title, style = WakeonType.title1, color = WakeonColors.White)
                 Text(body, style = WakeonType.body1.copy(lineHeight = 46.sp), color = WakeonColors.InfoText)
-                // 작은 안내(caption/1): 시안에 없음. 제휴한 것처럼 보이지 않게 덧붙인다(DESIGN_DIFF W-12)
-                if (note != null) Text(note, style = WakeonType.caption1, color = WakeonColors.InfoText)
             }
         }
+        if (note != null) Text(note, style = WakeonType.caption1.copy(lineHeight = 34.5.sp), color = WakeonColors.InfoText)
     }
 }
 
-// ════════════════════════════════════════ W-13 휴식 모드 (132:1759) · W-13b 기상 알람 (132:1902)
+// ════════════════════════════════════════ W-13 휴식 모드 (151:2640) · W-13b 기상 알람 (151:2691)
+// 2026-11-15 시안: 칩 줄을 지우고 버튼을 올렸다(W-13 757, W-13b 686).
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun RestLayout(
     s: WakeonSnapshot,
     actions: WakeonActions,
+    buttonsTop: Dp,
     top: @Composable () -> Unit,
-    chips: @Composable () -> Unit,
 ) {
     ParkFrame(s, background = WakeonColors.Primary900) {
         Box(Modifier.align(Alignment.TopCenter).padding(top = if (landscape()) 262.dp else 220.dp)) { top() }
-        FlowRow(
-            Modifier.align(Alignment.TopCenter).padding(top = if (landscape()) 644.dp else 700.dp, start = 40.dp, end = 40.dp),
-            horizontalArrangement = Arrangement.spacedBy(38.dp, Alignment.CenterHorizontally),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
-        ) { chips() }
         Row(
             Modifier.align(if (landscape()) Alignment.TopCenter else Alignment.BottomCenter)
-                .padding(top = if (landscape()) 826.dp else 0.dp, bottom = if (landscape()) 0.dp else 62.dp),
+                .padding(top = if (landscape()) buttonsTop else 0.dp, bottom = if (landscape()) 0.dp else 62.dp),
             horizontalArrangement = Arrangement.spacedBy(40.dp),
         ) {
             WkButton(ScreenStrings.PLUS_5, { actions.tap(UserIntent.SNOOZE_5) }, Modifier.width(if (landscape()) 346.dp else 240.dp), color = WakeonColors.ButtonDark)
@@ -439,7 +436,7 @@ fun W13Rest(s: WakeonSnapshot, actions: WakeonActions) {
     // 시연 휴식(30초)도 화면은 15:00부터 같은 비율로 줄어든다: 표시 = 남은 실제 시간 × (화면 길이 / 실제 길이)
     val left = s.restEndsAtMs?.let { end -> nominalRest(s, end - s.nowMs) } ?: 0
     RestLayout(
-        s, actions,
+        s, actions, buttonsTop = 757.dp,
         top = {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(40.dp)) {
                 // 시안 132:1805: 높이 253 칸 가운데에 Medium 280, 줄 높이 100%
@@ -457,28 +454,20 @@ fun W13Rest(s: WakeonSnapshot, actions: WakeonActions) {
                 )
             }
         },
-        chips = {
-            // 칩 2개(2026-11-14): "1분 전 미리 알림"은 기능을 지워 뺐다. "창문 조금 열기"가 F10 3번의 화면 한 줄 환기 안내다.
-            RestChip(R.drawable.wk_ic_light, true, 37f, 49f, ScreenStrings.CHIP_ALARM_SLOW)
-            RestChip(R.drawable.wk_ic_air, false, 81.677f, 81.677f, ScreenStrings.CHIP_WINDOW)
-        },
     )
 }
 
 @Composable
 fun W13bAlarm(s: WakeonSnapshot, actions: WakeonActions) {
-    val parts = sentences(VoiceLines.V35.text)
+    // 화면 = V-35 대사 그대로: 첫 문장은 큰 제목, 나머지 문장은 " · "로 이어 보조 문구("15분 휴식 완료 · 등받이를 세워 주세요")
+    val parts = sentences(VoiceLines.v35(restMinutes(s)).text)
     RestLayout(
-        s, actions,
+        s, actions, buttonsTop = 686.dp,
         top = {
             Column(Modifier.padding(top = if (landscape()) 72.dp else 0.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(20.dp)) {
                 Text(parts.first(), style = WakeonType.display3, color = WakeonColors.White, textAlign = TextAlign.Center, modifier = Modifier.width(if (landscape()) 906.dp else 726.dp))
-                if (parts.size > 1) Text(parts[1], style = WakeonType.body1, color = WakeonColors.SubText, textAlign = TextAlign.Center)
+                if (parts.size > 1) Text(parts.drop(1).joinToString(" · "), style = WakeonType.body1, color = WakeonColors.SubText, textAlign = TextAlign.Center)
             }
-        },
-        chips = {
-            RestChip(R.drawable.wk_ic_bell, true, 44f, 44f, ScreenStrings.CHIP_ALARM_MAX)
-            RestChip(R.drawable.wk_ic_timer, false, 81.677f, 81.677f, ScreenStrings.restDone(restMinutes(s)))
         },
     )
 }
@@ -568,7 +557,7 @@ private fun PieGlyph(modifier: Modifier) {
 
 /** 화면 기준 휴식 길이(분): 15분 + 연장. 값이 없으면 설정 기본값. */
 private fun restMinutes(s: WakeonSnapshot): Int =
-    if (s.restNominalMs > 0) (s.restNominalMs / MINUTE_MS).toInt() else WakeonConfig().restDefaultMin
+    if (s.restNominalMs > 0) ((s.restNominalMs + MINUTE_MS / 2) / MINUTE_MS).toInt() else WakeonConfig().restDefaultMin
 
 /** 남은 실제 시간을 화면 기준 시간으로 바꾼다(시연 휴식이면 늘려서). */
 internal fun nominalRest(s: WakeonSnapshot, actualLeftMs: Long): Long =

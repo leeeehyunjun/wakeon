@@ -386,10 +386,26 @@ class StateMachineTest {
         assertEquals(listOf("V-34", "V-33"), h.spokenIds().takeLast(2))
         h.finishSound()
         assertEquals("V-35", h.fx.lastLines.single().id)
+        // V-35 = W-13b 화면 문구와 같은 문장, 분은 실제로 쉰 길이(2026-11-15)
+        assertEquals("일어나실 시간이에요. 15분 휴식 완료. 등받이를 세워 주세요.", h.fx.lastLines.single().text)
         h.answer("으음… 일어났어.", 2_000)
         assertEquals(S14, h.state)
         assertEquals("12 빼기 4는요?", h.untilListening()?.text)
         assertEquals(listOf("V-35"), h.fx.spoken.filter { it.text.contains("등받이를 세워") }.map { it.id })
+    }
+
+    @Test
+    fun `5분 연장하고 일어나면 V-35는 20분 휴식 완료라고 말한다`() {
+        val h = toRest()
+        h.finishSpeech()
+        h.m.onTap(UserIntent.SNOOZE_5)
+        while (!h.fx.sounds.contains(Sound.Alarm(1))) {
+            h.finishSpeech()
+            h.tick(200)
+        }
+        h.finishSound()
+        assertEquals("일어나실 시간이에요. 20분 휴식 완료. 등받이를 세워 주세요.", h.fx.lastLines.single().text)
+        assertEquals(20, ((h.snap.restNominalMs + MINUTE_MS / 2) / MINUTE_MS).toInt())
     }
 
     @Test

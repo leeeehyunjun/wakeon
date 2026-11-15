@@ -514,7 +514,8 @@ def subtitle_items(p, segs):
         a = to_out(sg, t)
         cut = seg_end(sg, t)
         nxt = next((c for c in car_starts if c > a + 1e-3), None)
-        b = min([a + (DUR_ANSWER_NOTE if note else DUR_ANSWER), cut] + ([nxt] if nxt is not None else []))
+        # 컷 1프레임 전에 내린다: 구간을 이어 붙일 때 프레임 반올림으로 다음 컷 첫 프레임에 자막이 남는 일이 있었다(2026-11-15 녹화 13회차)
+        b = min([a + (DUR_ANSWER_NOTE if note else DUR_ANSWER), cut - 1 / FPS] + ([nxt] if nxt is not None else []))
         if cut - a < MIN_STAY - 1e-6:
             warn.append(f"운전자 자막이 뜬 뒤 {cut - a:.2f}초 만에 컷이 바뀜(0.8초 미만): {text}")
         if b - a < MIN_STAY - 1e-6:

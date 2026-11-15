@@ -130,6 +130,9 @@ class PleosSpeechEngine(context: Context, audio: AudioCoordinator) : SpeechEngin
             if (rms > 0.0 && !audioStarted) {
                 audioStarted = true
                 Log.i(TAG, "tts_play vid=${queue.getOrNull(index)?.id} part=$index engine=pleos rms=${"%.1f".format(rms)}")
+                // 시간 초과 감시는 실제 소리가 난 순간부터 다시 센다. 기기가 바쁘면 요청(onStart) 뒤 소리가 7초 늦게 나기도 해서,
+                // onStart부터 세면 문장 끝이 잘렸다(2026-11-15 녹화, V-03).
+                main.post { if (audioStarted && onDone != null) { main.removeCallbacks(watchdog); main.postDelayed(watchdog, partLimitMs()) } }
             }
         }
         override fun onDone() {

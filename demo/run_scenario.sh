@@ -250,6 +250,13 @@ b --ei speed 95
 car Drive 95
 wait_log "tts_spoken vid=V-24" 20
 hold 2
+# 경유지를 넣으면 내비가 V-24 뒤에 안내를 말할 때가 있다. 그 사이에 1km 지점을 넣으면 앱은 V-25를 생략한다(A8, 2026-11-15 녹화).
+# 내비 안내가 끝날 때까지(최대 15초) 기다린 뒤 1초 더 두고 넣는다.
+for _ in $(seq 1 75); do
+  [ "$("$ADB" logcat -d -s 'Wakeon:*' | grep -o "audio nav_voice=[a-z]*" | tail -1)" != "audio nav_voice=true" ] && break
+  sleep 0.2
+done
+hold 1
 clear_log
 b --ef routeKm 237 --ei speed 72 --es clock 23:22
 car Drive 72
